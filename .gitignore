@@ -1,1 +1,14 @@
 .DS_Store
+node_modules/
+.next/
+out/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+*.log
+.env*
+!.env.example
+.vercel/
+supabase/.temp/
+supabase/.branches/

@@ -1,0 +1,9 @@
+node_modules/
+.next/
+package-lock.json
+REQUIREMENTS.md
+supabase/
+test-results/
+playwright-report/
+next-env.d.ts
+.env*
