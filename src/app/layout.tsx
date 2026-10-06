@@ -22,21 +22,6 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           Skip to content
         </a>
         <SiteHeader />
-        <div className="border-b border-line bg-surface">
-          <div className="page-container flex items-center gap-2.5 py-2.5 text-xs leading-5 text-muted">
-            <span
-              className="size-1.5 shrink-0 rounded-full bg-brand"
-              aria-hidden="true"
-            />
-            <p>
-              <span className="font-medium">Workspace preview</span>
-              <span className="mx-2" aria-hidden="true">
-                ·
-              </span>
-              No employee or presentation data is displayed.
-            </p>
-          </div>
-        </div>
         <main
           id="main-content"
           tabIndex={-1}

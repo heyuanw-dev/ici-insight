@@ -38,10 +38,21 @@ site_url = "http://localhost:3000"
 additional_redirect_urls = ["http://localhost:3000/auth/callback", "http://127.0.0.1:3000/auth/callback"]
 enable_signup = false
 enable_anonymous_sign_ins = false
+minimum_password_length = 8
 
 [auth.email]
-enable_signup = false
+# This provider switch must remain enabled for password login/recovery.
+# Public registration is blocked by [auth].enable_signup = false above.
+enable_signup = true
 enable_confirmations = true
+
+[auth.email.template.invite]
+subject = "You’re invited to ICI AI Insight Hub"
+content_path = "./supabase/templates/invite.html"
+
+[auth.email.template.recovery]
+subject = "Reset your ICI AI Insight Hub password"
+content_path = "./supabase/templates/recovery.html"
 
 [storage]
 enabled = true

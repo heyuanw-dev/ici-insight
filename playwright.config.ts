@@ -24,6 +24,7 @@ export default defineConfig({
     },
     {
       name: "tablet",
+      testIgnore: "**/authentication.spec.ts",
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 768, height: 1024 },
@@ -31,6 +32,7 @@ export default defineConfig({
     },
     {
       name: "mobile",
+      testIgnore: "**/authentication.spec.ts",
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 390, height: 844 },
@@ -41,6 +43,7 @@ export default defineConfig({
   ],
   webServer: {
     command: "npm run start -- --port 3100",
+    env: { APP_URL: "http://127.0.0.1:3100" },
     url: "http://127.0.0.1:3100",
     reuseExistingServer: false,
     timeout: 60_000,

@@ -1,9 +1,16 @@
+import { requirePresentationAccess } from "@/lib/auth/session";
 import type { Metadata } from "next";
 import { RoutePlaceholder } from "@/components/layout/route-placeholder";
 
 export const metadata: Metadata = { title: "Presentation" };
 
-export default function PresentationPage() {
+export default async function PresentationPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  await requirePresentationAccess(id, false);
   return (
     <RoutePlaceholder
       title="Presentation details"

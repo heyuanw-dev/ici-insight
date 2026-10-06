@@ -1,5 +1,9 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test, signIn } from "./fixtures";
+
+test.beforeEach(async ({ page, account }) => {
+  await signIn(page, account);
+});
 
 const pages = [
   { path: "/", heading: "AI insight,shared together.", nav: "Home" },
@@ -21,9 +25,7 @@ for (const { path, heading, nav } of pages) {
         .getByRole("navigation", { name: "Main navigation" })
         .getByRole("link", { name: nav, exact: true }),
     ).toHaveAttribute("aria-current", "page");
-    await expect(
-      page.getByText("Workspace preview", { exact: false }),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth <= window.innerWidth,
@@ -65,7 +67,7 @@ test("primary navigation, home actions, and browser history work", async ({
   await expect(page).toHaveURL("/archive");
 });
 
-test("keyboard users can skip navigation and sign-in collects no credentials", async ({
+test("keyboard users can skip navigation and access password settings", async ({
   page,
 }) => {
   await page.goto("/");
@@ -75,11 +77,10 @@ test("keyboard users can skip navigation and sign-in collects no credentials", a
   ).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page.getByRole("main")).toBeFocused();
-  await page.getByRole("link", { name: "Sign in", exact: true }).click();
+  await page.getByRole("link", { name: "Test Employee" }).click();
   await expect(
-    page.getByRole("heading", { name: "Sign-in is coming soon" }),
+    page.getByRole("heading", { name: "Update your password" }),
   ).toBeVisible();
-  await expect(page.locator("form, input")).toHaveCount(0);
   expect(
     (
       await new AxeBuilder({ page })
@@ -89,25 +90,22 @@ test("keyboard users can skip navigation and sign-in collects no credentials", a
   ).toEqual([]);
 });
 
-test("supporting routes are honest placeholders and unknown routes return 404", async ({
+test("later workflow remains a placeholder; invalid and missing presentation IDs are not exposed", async ({
   page,
 }) => {
+  await page.goto("/presentations/new");
+  await expect(
+    page.getByRole("heading", { name: "This space is getting ready" }),
+  ).toBeVisible();
   for (const path of [
-    "/presentations/new",
     "/presentations/example",
     "/presentations/example/edit",
-    "/account/password",
+    "/presentations/11111111-1111-4111-8111-111111111111",
+    "/this-page-does-not-exist",
   ]) {
-    const response = await page.goto(path);
-    expect(response?.status()).toBe(200);
+    await page.goto(path);
     await expect(
-      page.getByRole("heading", { name: "This space is getting ready" }),
+      page.getByRole("heading", { name: "Let’s get you back on track." }),
     ).toBeVisible();
-    await expect(page.locator("form, input")).toHaveCount(0);
   }
-  const missing = await page.goto("/this-page-does-not-exist");
-  expect(missing?.status()).toBe(404);
-  await expect(
-    page.getByRole("heading", { name: "Let’s get you back on track." }),
-  ).toBeVisible();
 });

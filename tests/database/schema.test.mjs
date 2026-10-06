@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { readFile, readdir } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { after, before, beforeEach, test } from "node:test";
-import { PGlite } from "@electric-sql/pglite";
+import { database } from "./helpers.mjs";
 
 // Real PostgreSQL execution, with only the Supabase-managed identity table and
 // request roles stubbed. This does not substitute for Supabase Auth/RLS testing.
@@ -12,22 +12,7 @@ const seed = await readFile(
 );
 
 before(async () => {
-  db = new PGlite();
-  await db.exec(`
-    create schema auth;
-    create table auth.users (id uuid primary key);
-    create role anon nologin;
-    create role authenticated nologin;
-  `);
-  const migrationDirectory = new URL(
-    "../../supabase/migrations/",
-    import.meta.url,
-  );
-  for (const file of (await readdir(migrationDirectory))
-    .filter((name) => name.endsWith(".sql"))
-    .sort()) {
-    await db.exec(await readFile(new URL(file, migrationDirectory), "utf8"));
-  }
+  db = await database();
 });
 
 after(async () => {
@@ -331,7 +316,7 @@ test("file metadata enforces one current file per kind; soft deletion preserves 
 
 test("employee identity removal preserves authorship and duplicate emails are rejected", async () => {
   const authId = "11111111-1111-4111-8111-111111111111";
-  await db.query("insert into auth.users values ($1)", [authId]);
+  await db.query("insert into auth.users (id) values ($1)", [authId]);
   const userId = await user();
   await db.query("update public.users set auth_user_id = $1 where id = $2", [
     authId,
@@ -361,7 +346,7 @@ test("employee identity removal preserves authorship and duplicate emails are re
   );
 });
 
-test("application tables and overview are inaccessible to anonymous and authenticated roles until Phase 2", async () => {
+test("anonymous and unlinked authenticated identities cannot read internal records", async () => {
   await user();
   const tables = [
     "users",
@@ -369,34 +354,30 @@ test("application tables and overview are inaccessible to anonymous and authenti
     "presentation_slots",
     "presentations",
     "presentation_files",
+    "presentation_overview",
   ];
   const { rows } = await db.query(
-    "select relname, relrowsecurity from pg_class where relnamespace = 'public'::regnamespace and relkind = 'r'",
+    "select relrowsecurity from pg_class where relnamespace = 'public'::regnamespace and relkind = 'r'",
   );
   assert.equal(rows.length, 5);
   assert.ok(rows.every((row) => row.relrowsecurity));
   for (const role of ["anon", "authenticated"]) {
     await db.exec(`set role ${role}`);
     try {
-      for (const table of [...tables, "presentation_overview"]) {
-        await assert.rejects(
-          db.query(`select * from public.${table}`),
-          failsWith("42501"),
-        );
+      for (const table of tables) {
+        if (role === "anon")
+          await assert.rejects(
+            db.query(`select * from public.${table}`),
+            failsWith("42501"),
+          );
+        else
+          assert.equal(
+            (await db.query(`select * from public.${table}`)).rows.length,
+            0,
+          );
       }
     } finally {
       await db.exec("reset role");
     }
-  }
-  // Even an accidental SELECT grant must not expose records without a policy.
-  await db.exec(
-    "grant select on public.users to authenticated; set role authenticated",
-  );
-  try {
-    assert.equal((await db.query("select * from public.users")).rows.length, 0);
-  } finally {
-    await db.exec(
-      "reset role; revoke select on public.users from authenticated",
-    );
   }
 });

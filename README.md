@@ -1,183 +1,169 @@
 # ICI AI Insight Hub
 
-Phase 1 foundation for ICI Lab’s internal weekly AI presentation platform. [REQUIREMENTS.md](./REQUIREMENTS.md) is the source of truth.
+Internal weekly AI presentation workspace for ICI Lab. [REQUIREMENTS.md](./REQUIREMENTS.md) is the source of truth. Phases 1 and 2 are implemented.
 
 ## Current scope
 
-Implemented:
+- Next.js App Router, strict TypeScript, Tailwind CSS, responsive navigation, shared visual components, and accessible empty page shells.
+- Invite-only email/password sign-in, invitation acceptance, password setup/recovery, and sign-out using Supabase Auth.
+- Verified server sessions, active employee profiles, database-controlled user/admin roles, protected routes, and database read authorization.
+- PostgreSQL schema for employees, categories, slots, presentations, and file metadata; six months of Tuesday slots and the 12 reference categories.
 
-- Next.js App Router, strict TypeScript, Tailwind CSS, and reproducible npm dependencies.
-- Responsive application shell, navigation, design tokens, shared UI components, and page metadata.
-- Home, Schedule, and Archive shells; supporting presentation and account route placeholders.
-- Keyboard focus and skip navigation, loading/error states, and a 404 page.
-- PostgreSQL migration for users, categories, slots, presentations, and file metadata.
-- A seed containing the 12 reference categories and six calendar months of Tuesday slots.
-- Database integrity tests and browser checks across desktop, tablet, and mobile layouts.
-
-This is a **local foundation preview**. Pages contain no employee or presentation records and never connect to Supabase. Sign-in, booking, editing, cancellation, live archive/search, file operations, and admin workflows are intentionally deferred. Placeholder routes do not submit forms or accept credentials. The workspace layout is a structural boundary, not an authentication guard.
-
-Do not use this phase to host internal content. Application tables have Row Level Security enabled, no access policies, and no grants to anonymous or authenticated users. Phase 2 must add authentication, server authorization, and reviewed database policies before internal data is connected.
+Booking, editing/rescheduling/cancellation, archive search, file uploads/downloads, and admin workflows remain deferred to Phases 3–7. Schedule and archive pages still display empty shells. All business-data writes remain denied through the Data API, including for application administrators; later phases must add their transactional operations and grants.
 
 ## Run locally
 
-Use Node.js 22.13+ (22.x) or Node.js 24.x and npm. `.nvmrc` selects Node 22.
+Use Node.js 22.13+ (22.x) or Node.js 24.x, npm, and a running Docker Desktop or compatible container runtime. `.nvmrc` selects Node 22.
 
 ```sh
 npm ci
+npm run db:start
+cp .env.example .env.local
+```
+
+Set `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local` to the **local publishable key** shown by `db:start` or `npx supabase status`. Keep the other example values for the default local setup. Do not copy a secret or service-role key into that variable. This phase does not use a privileged key in the application.
+
+```sh
 npm run dev
 ```
 
-Open **http://localhost:3000**. The development server binds to `127.0.0.1` by default. No Docker, Supabase account, environment file, or credentials are needed to preview Phase 1.
+Open **http://localhost:3000**. The server binds to `127.0.0.1`. The login page displays a configuration-unavailable message if required environment values are absent or invalid; internal routes remain protected. Restart Next.js after changing environment variables. Rebuild production output when changing either `NEXT_PUBLIC_` value.
 
-If you use nvm, run `nvm use` first. If Node 22 is not installed, run `nvm install`.
+For an existing local database, apply pending migrations before running the app:
 
-Production build, still containing only the foundation preview:
+```sh
+npx supabase migration up --local
+```
+
+For a disposable local database only, `npm run db:reset` rebuilds this project's database and seeds it, **replacing existing local data**. Stop containers with `npm run db:stop`; this preserves local data. No hosted project is changed by these commands.
+
+### Invite your first employee and administrator
+
+1. Open local Supabase Studio at **http://127.0.0.1:54323**. In Authentication → Users, choose **Invite user** and enter the employee's email.
+2. Open the captured invitation in local Mailpit at **http://127.0.0.1:54324**. Local mail stays in Mailpit; it is not delivered to an external mailbox.
+3. Follow the invitation, select **Continue to password setup**, and choose a password. Then sign in with that email and password.
+4. To establish an administrator, change that employee's `public.users.role` from `user` to `admin` in Studio, or run the following in Studio's SQL editor with the intended employee's email:
+
+```sql
+update public.users
+set role = 'admin'
+where lower(email) = lower('employee@example.com');
+```
+
+Invitations automatically create a linked employee profile with the regular `user` role. A new invitation requires a password change after email confirmation before workspace access. Roles and active state never come from editable Auth user metadata. Set `public.users.is_active = false` to revoke application access immediately, including reads using an existing access token. Re-enable explicitly when appropriate. Supabase Auth bans are also respected.
+
+Prefer **Invite user** over **Create user**. A manually created Auth identity alone has no application access; an administrator must explicitly create its linked `public.users` profile. If you choose that provisioning route, confirm the Auth email and insert the exact Auth UUID, employee name, and email. Set `password_setup_required = false` only if a password was already deliberately provisioned. Never infer an admin role from email or user metadata.
+
+Deleting an Auth identity retains the application profile and authorship. Re-inviting the same email will conflict with its retained unique email until an administrator deliberately reconciles that profile. Do not delete historical profiles or automatically reconnect a new identity to a previous administrator.
+
+### Hosted Supabase / Vercel setup
+
+No hosted project has been configured or deployed. Before using a hosted environment:
+
+- Apply the repository migrations through the normal Supabase migration workflow.
+- Enable the email/password provider; disable public signups and anonymous sign-ins. Set the minimum password length to at least 8 characters.
+- Set the Supabase Auth **Site URL** and Vercel `APP_URL` to the same canonical HTTPS origin. Allow that origin's `/auth/callback` redirect. Use a separate Supabase project for preview environments if they need authentication.
+- Copy [invite.html](./supabase/templates/invite.html) and [recovery.html](./supabase/templates/recovery.html) into the corresponding Supabase Auth email templates. These use `SiteURL` and a one-time token hash to open `/auth/confirm`; merely loading the page does not consume the token.
+- Configure authentication email delivery/SMTP and verify delivery, expiration, and redirects with the deployed origin. Invite initial employees and establish the first administrator in Supabase administration.
+- Set the three required environment variables from `.env.example` in Vercel before building.
+
+`supabase/config.toml` configures **local** services only. In particular, `[auth].enable_signup = false` blocks public registration, while `[auth.email].enable_signup = true` keeps the email provider available for invited users' sign-in and recovery. The browser tests also verify that direct public signup is rejected. See the [Supabase provider configuration clarification](https://github.com/supabase/supabase/issues/40582) and [Auth configuration documentation](https://supabase.com/docs/guides/auth/general-configuration).
+
+## Authentication and authorization
+
+All Supabase calls from the app run on the server using the publishable key and the employee's session. There is no browser Auth client, privileged key, or local-storage token. Session cookies are `HttpOnly`, `SameSite=Lax`, and `Secure` on HTTPS. The Next.js proxy refreshes and verifies tokens, while server guards use `getUser()` and the current application profile to verify employee membership and role. Private responses use `Cache-Control: private, no-store`. Return destinations are restricted to known internal routes. Credential mutations use POST Server Actions and Next.js origin checks.
+
+The database independently resolves an active, confirmed, unbanned employee from `auth.uid()`. Completed password setup is required for domain reads. Anonymous and unlinked identities cannot read internal data. Employees can read their own access-status profile before password setup; active employees can read the internal directory and visible domain records. Soft-deleted presentations and their file metadata are hidden, including through the security-invoker overview view.
+
+`presentation_permissions` is a read-only RPC used by server route guards. Owners may edit metadata through the scheduled Vancouver date; completed metadata requires an administrator. File-management permission remains available to owners after completion. Administrators may manage any visible presentation. These are authorization primitives for future workflows, not mutation endpoints. Direct updates to roles, active state, password-setup flags, or business records are denied to both application roles.
+
+Sign-out clears this browser's credentials and revokes its refresh token. A password update requests global refresh-token revocation and requires another sign-in. Supabase access tokens already issued to other clients can remain valid until expiry; account deactivation/ban is checked independently on protected reads. If Auth is unavailable during sign-out, the browser cookies are still removed, but server-side revocation cannot be guaranteed.
+
+## Routes
+
+| Route                      | Current behavior                                                                 |
+| -------------------------- | -------------------------------------------------------------------------------- |
+| `/login`                   | Public invited-account sign-in; `?mode=recovery` displays password recovery      |
+| `/auth/confirm`            | Public confirmation screen for invitation/recovery links; token consumed on POST |
+| `/auth/callback`           | Public PKCE session exchange; validates account and safe return destination      |
+| `/account/password`        | Verified active account required; supports initial setup and password changes    |
+| `/`                        | Protected home shell                                                             |
+| `/schedule`                | Protected schedule shell; no booking controls                                    |
+| `/archive`                 | Protected archive shell; no live search                                          |
+| `/presentations/new`       | Protected registration placeholder                                               |
+| `/presentations/[id]`      | Requires a visible, existing presentation; content remains a placeholder         |
+| `/presentations/[id]/edit` | Additionally checks owner/date/admin permission; editing remains a placeholder   |
+
+The confirmation/callback endpoints only establish authentication; they expose no internal content. Invalid, missing, unauthorized, and soft-deleted presentation IDs share the same not-found screen.
+
+## Database and structure
+
+| Entity                  | Purpose                                                                                                     |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `users`                 | Stable employee identity, optional Auth link, name/email, protected role/active state, password setup state |
+| `categories`            | Category names, ordering, active state                                                                      |
+| `presentation_slots`    | Date, slot number, open/closed state; multiple slots per day                                                |
+| `presentations`         | One presenter/slot, required title, optional category/description/reference URL, cancellation/soft deletion |
+| `presentation_files`    | One current PPTX/PDF reference per presentation; file metadata only                                         |
+| `presentation_overview` | Visible presentations with calculated status, presenter, category, and file IDs                             |
+
+A partial unique index prevents duplicate active bookings while cancellation/soft deletion releases the slot. Completion uses the following **America/Vancouver** midnight. The seed creates Tuesdays in `[today, today + 6 calendar months)` and preserves matching categories, slots, and closures when rerun. No sample employees or presentations are seeded. Files are metadata only; private buckets, upload validation, signed URLs, and cleanup remain Phase 6.
+
+```text
+src/
+  app/
+    (auth)/                Login, password, confirmation UI, Auth Server Actions
+    auth/callback/         PKCE callback handler
+    (workspace)/           Protected layout and application route shells
+    layout.tsx             Shared header, footer, metadata, main landmark
+    globals.css            Tailwind theme and visual tokens
+  components/
+    auth/                  Accessible authentication forms
+    layout/                Header, navigation, footer, placeholder layout
+    ui/                    Buttons, icons, headings, empty states
+  lib/
+    auth/                  Verified sessions, route guards, input/redirect validation
+    supabase/              Server client and validated environment configuration
+    config.ts              Application name and confirmed constants
+  proxy.ts                 Session refresh, initial route guard, cache headers
+  types/                   Generated database types and domain vocabulary
+supabase/
+  migrations/              Foundation and Phase 2 authorization SQL
+  templates/               Invitation and recovery email templates
+  config.toml              Local service/Auth configuration
+  seed.sql                 Categories and initial weekly slots
+tests/
+  database/                Executable PostgreSQL integrity and authorization tests
+  unit/                    Input validation and return-path tests
+  e2e/                     Browser, real local Auth/API, and accessibility tests
+```
+
+Run `npm run db:types` against the running local database after a schema change, then format the generated file. The three active environment variables are `APP_URL`, `NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Timezone is fixed in application constants and SQL. No storage or privileged-key environment variables are needed in this phase. Never commit `.env.local`.
+
+## Checks
+
+```sh
+npm run check
+npm run format:check
+npx playwright install chromium
+npm run test:ui
+```
+
+`check` runs lint, route-aware TypeScript checking, unit tests, PostgreSQL schema/RLS tests, and a production build. Unit and database tests do not require Docker. Browser tests require this project's running **local** Supabase stack, `.env.local` pointing to it, and a fresh production build. They start the application on port 3100, create temporary `.test` accounts, exercise real local Auth/PostgREST/Mailpit services, and remove their own records. No real employee mail is sent. Tests refuse non-local database targets.
+
+If Google Chrome is installed, use `PLAYWRIGHT_CHANNEL=chrome npm run test:ui` instead of downloading Chromium. UI checks run at desktop, tablet, and mobile widths. The shared authorization integration scenarios run once on desktop. Screenshots/traces are ignored local test artifacts and can contain test credentials; do not publish them. Automated accessibility checks supplement manual review.
+
+For a production-style local run:
 
 ```sh
 npm run build
 npm start
 ```
 
-## Checks
+## Remaining work
 
-```sh
-npm run check
-npx playwright install chromium
-npm run test:ui
-```
+- Hosted Supabase/Vercel configuration, SMTP delivery, actual employee invitations, and initial administrator provisioning require the real project and domain.
+- Phases 3–7 remain unimplemented, including all storage access and business mutations.
+- The Phase 1 tooling limitation remains: Next.js's React lint plugins require the pinned ESLint 9 version. The dependency audit reports an upstream development-only `braces` advisory through that lint configuration; production dependencies are audited separately with `npm audit --omit=dev`. Avoid a forced tooling downgrade.
 
-`check` runs ESLint, route-aware TypeScript checking, database tests, and the production build. Browser tests start and stop the production server on port 3100, so build before running them individually.
-
-If Google Chrome is already installed, you can skip downloading Chromium and run:
-
-```sh
-PLAYWRIGHT_CHANNEL=chrome npm run test:ui
-```
-
-Useful individual commands:
-
-```sh
-npm run lint
-npm run typecheck
-npm run test:db
-npm run format:check
-```
-
-Database tests execute the actual migration and seed in an isolated, in-memory PostgreSQL instance using PGlite. Only Supabase’s managed `auth.users` table and the `anon`/`authenticated` roles are supplied as test fixtures. Tests cover slot uniqueness, same-day multiple slots, cancellation/soft deletion, failed moves, metadata constraints, Vancouver midnight and historical DST boundaries, seed preservation, identity retention, and default-deny access. PGlite uses a single connection; this does not test concurrent booking requests or a complete Supabase stack. Those integration tests belong with the later booking and authorization workflows.
-
-Browser tests cover navigation, route shells, 404 handling, runtime errors, horizontal overflow, keyboard access, and automated WCAG checks. Screenshots and failure artifacts go into ignored `test-results/` directories. Automated accessibility checks do not replace manual review.
-
-## Local database setup (optional in Phase 1)
-
-Install and start Docker Desktop or another Supabase-compatible local container runtime. The Supabase CLI is included as a development dependency.
-
-```sh
-npm run db:start
-npm run db:reset
-```
-
-`db:reset` rebuilds this project’s disposable **local** database and applies all migrations plus `supabase/seed.sql`; existing local database data is replaced. It does not target a hosted project. Supabase Studio is available at **http://127.0.0.1:54323**.
-
-```sh
-npm run db:types
-npm run db:stop
-```
-
-`db:types` generates `src/types/database.ts` from the running local schema. The application does not need generated query types yet because Phase 1 performs no database queries. `src/types/domain.ts` contains only the application’s shared vocabulary.
-
-No hosted database has been provisioned or migrated, and no storage buckets have been created. Supabase local configuration disables public and anonymous signups; hosted Auth configuration must be set independently during Phase 2. [Supabase migration workflow](https://supabase.com/docs/guides/local-development/database-migrations)
-
-## Schema
-
-| Entity                  | Purpose                                                                                                                     |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `users`                 | Stable application identity, optional unique Supabase Auth identity link, name, email, role, active state, audit timestamps |
-| `categories`            | Editable category definitions, ordering, and active state                                                                   |
-| `presentation_slots`    | Calendar date, slot number, open/closed state, audit timestamps                                                             |
-| `presentations`         | Slot and presenter relationships, title, optional category/description/reference URL, cancellation/deletion timestamps      |
-| `presentation_files`    | One current PowerPoint and PDF reference per presentation; bucket/path, filename, MIME type, size, uploader                 |
-| `presentation_overview` | Non-deleted presentations joined to date, presenter, category, file IDs, and calculated status                              |
-
-Key decisions:
-
-- Unique `(presentation_date, slot_number)` allows several slots on one date. A partial unique index on `presentations.slot_id` excludes cancelled and soft-deleted records, preventing duplicate bookings without losing history.
-- Presentation dates come from slots. Later rescheduling changes the presentation’s `slot_id`, not a shared slot’s calendar date. Booking transactions and permission checks are not implemented in Phase 1.
-- `presentation_status` calculates completion at the following **America/Vancouver** midnight. A cancelled presentation stays cancelled. Soft-deleted rows are excluded from the overview; future archive queries must also filter for `completed`.
-- Application user IDs survive removal of an authentication identity. Foreign keys prevent accidental destruction of authorship and file references.
-- Descriptions allow up to 500 characters. Category, description, and one HTTP(S) reference URL are optional. Full URL validation will also be required at the server input boundary.
-- Files are metadata only. Upload size limits, content validation, private buckets, signed URLs, and replacement cleanup belong to Phase 6.
-- RLS is enabled with no policies; explicit grants are revoked. The view uses `security_invoker`, preserving underlying permissions. Ownership, same-day editing rules, and admin policies belong to Phase 2 and the later workflows.
-
-The seed uses the current Vancouver date when it runs, includes Tuesdays in `[today, today + 6 calendar months)`, and creates one slot per Tuesday. Re-running it does not overwrite matching categories, occupied slots, or closures. It is initial reference data, not a scheduler or admin interface. There are no sample employees or presentations.
-
-## Routes
-
-| Route                      | Phase 1 behavior                                                     |
-| -------------------------- | -------------------------------------------------------------------- |
-| `/`                        | Home shell, purpose, navigation actions, and empty presentation area |
-| `/schedule`                | Schedule shell without live dates or booking controls                |
-| `/archive`                 | Archive shell without live search or filters                         |
-| `/login`                   | Sign-in placeholder; no credentials collected                        |
-| `/account/password`        | Account setup/recovery placeholder                                   |
-| `/presentations/new`       | Registration placeholder                                             |
-| `/presentations/[id]`      | Generic detail placeholder; no record lookup                         |
-| `/presentations/[id]/edit` | Editing placeholder; no record lookup                                |
-
-Authentication callbacks and file API endpoints will be added with their respective phases. Dynamic presentation routes currently accept any path identifier and show the same placeholder; validation, record lookup, access checks, and record-specific 404s are deferred.
-
-## Design and structure
-
-The design uses a restrained red, white, charcoal, and gray palette; semantic HTML; generous spacing; subtle borders; and visible focus states. Fonts use a local system stack without build-time font downloads. The ICI text identifier is an application wordmark, not a recreated Huawei logo. No official brand assets were supplied.
-
-```text
-src/
-  app/
-    (workspace)/          Home, schedule, archive, presentation route shells
-    (auth)/               Login and password route shells
-    layout.tsx            Shared shell, metadata, and main landmark
-    globals.css           Tailwind theme and common visual tokens
-    loading.tsx           Shared loading state
-    error.tsx             Retryable error boundary
-    not-found.tsx         Unknown-route page
-  components/
-    layout/               Header, footer, navigation, placeholder layout
-    ui/                   Links styled as buttons, icons, headings, empty states
-  lib/config.ts           Application name and confirmed requirements constants
-  types/domain.ts         Shared domain vocabulary
-supabase/
-  config.toml             Local Supabase configuration
-  migrations/            Versioned PostgreSQL schema
-  seed.sql                Categories and initial weekly slots
-tests/
-  database/               Executable migration and integrity tests
-  e2e/                    Browser, keyboard, and accessibility checks
-```
-
-Server Components are the default. Only active navigation and the error boundary need client-side JavaScript. Additional data-access modules should be added when they have a concrete use in a later phase.
-
-## Environment variables
-
-`.env.example` documents the planned configuration. Copy it to `.env.local` when configuring a later integration; it is not required for this phase.
-
-| Variable                                       | Purpose                                                                |
-| ---------------------------------------------- | ---------------------------------------------------------------------- |
-| `APP_URL`                                      | Application origin for future authentication redirects                 |
-| `APP_TIMEZONE`                                 | Required deployment value: `America/Vancouver`                         |
-| `NEXT_PUBLIC_SUPABASE_URL`                     | Supabase project URL                                                   |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`         | Publishable key; does not replace authorization policies               |
-| `SUPABASE_SECRET_KEY`                          | Server-only privileged credential for narrowly scoped later operations |
-| `SUPABASE_PPTX_BUCKET` / `SUPABASE_PDF_BUCKET` | Future private storage bucket names                                    |
-| `MAX_UPLOAD_BYTES`                             | Future upload limit, initially `50000000`                              |
-| `FILE_URL_TTL_SECONDS`                         | Future signed-link lifetime, initially `300`                           |
-
-These are placeholders, not active integrations. The timezone is fixed to the confirmed requirement in `src/lib/config.ts` and the SQL migration; changing the environment variable alone does not change it. Never commit `.env.local`, database connection strings, or privileged keys.
-
-## Remaining work and tooling notes
-
-- Authentication and employee access are Phase 2. Provision the Supabase project, invite initial accounts, establish the first administrator, and configure authentication email delivery then.
-- Full local Supabase validation requires a running container runtime. Embedded PostgreSQL tests cannot verify Supabase-managed services or network behavior.
-- Official brand assets have not been supplied; the neutral application identity can be replaced later.
-- Scheduling, rescheduling workflows, live archive/search, file handling, and administrative controls remain deferred as requested.
-- The current Next.js ESLint configuration uses React plugins compatible with ESLint 9, so ESLint is pinned to 9.39.5. ESLint 10 currently fails with that plugin combination. Dependency audit also reports an upstream development-only `braces` advisory through the Next.js lint configuration; no fixed `braces` release was available when this foundation was checked. Production dependencies are checked separately with `npm audit --omit=dev`. Recheck these tooling dependencies before the next phase; do not use a forced audit downgrade of Next.js tooling.
-
-Framework setup follows the official [Next.js installation guide](https://nextjs.org/docs/app/getting-started/installation) and [Tailwind CSS Next.js guide](https://tailwindcss.com/docs/installation/framework-guides/nextjs).
+Auth integration follows the official [Supabase SSR guide](https://supabase.com/docs/guides/auth/server-side/creating-a-client) and [Next.js authentication guide](https://nextjs.org/docs/app/guides/authentication).
