@@ -24,7 +24,10 @@ export default defineConfig({
     },
     {
       name: "tablet",
-      testIgnore: "**/authentication.spec.ts",
+      testIgnore: [
+        "**/authentication.spec.ts",
+        "**/booking-integration.spec.ts",
+      ],
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 768, height: 1024 },
@@ -32,7 +35,10 @@ export default defineConfig({
     },
     {
       name: "mobile",
-      testIgnore: "**/authentication.spec.ts",
+      testIgnore: [
+        "**/authentication.spec.ts",
+        "**/booking-integration.spec.ts",
+      ],
       use: {
         ...devices["Desktop Chrome"],
         viewport: { width: 390, height: 844 },

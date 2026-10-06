@@ -1,15 +1,16 @@
 # ICI AI Insight Hub
 
-Internal weekly AI presentation workspace for ICI Lab. [REQUIREMENTS.md](./REQUIREMENTS.md) is the source of truth. Phases 1 and 2 are implemented.
+Internal weekly AI presentation workspace for ICI Lab. [REQUIREMENTS.md](./REQUIREMENTS.md) is the source of truth. Phases 1–3 are implemented.
 
 ## Current scope
 
-- Next.js App Router, strict TypeScript, Tailwind CSS, responsive navigation, shared visual components, and accessible empty page shells.
+- Next.js App Router, strict TypeScript, Tailwind CSS, responsive navigation, shared visual components, and accessible page layouts.
 - Invite-only email/password sign-in, invitation acceptance, password setup/recovery, and sign-out using Supabase Auth.
 - Verified server sessions, active employee profiles, database-controlled user/admin roles, protected routes, and database read authorization.
 - PostgreSQL schema for employees, categories, slots, presentations, and file metadata; six months of Tuesday slots and the 12 reference categories.
+- Live upcoming presentations on Home, a schedule grouped by date and slot, 12-week navigation, and self-service registration with confirmation and conflict handling.
 
-Booking, editing/rescheduling/cancellation, archive search, file uploads/downloads, and admin workflows remain deferred to Phases 3–7. Schedule and archive pages still display empty shells. All business-data writes remain denied through the Data API, including for application administrators; later phases must add their transactional operations and grants.
+Editing/rescheduling/cancellation, archive search, file uploads/downloads, and admin workflows remain deferred to Phases 4–7. Archive and presentation detail/edit routes still display placeholders. Registration is the only business mutation enabled, through a restricted database function; direct table writes remain denied, including for application administrators. See [Phase 3 implementation and Success Criteria](./docs/phase-3.md).
 
 ## Run locally
 
@@ -75,7 +76,7 @@ All Supabase calls from the app run on the server using the publishable key and 
 
 The database independently resolves an active, confirmed, unbanned employee from `auth.uid()`. Completed password setup is required for domain reads. Anonymous and unlinked identities cannot read internal data. Employees can read their own access-status profile before password setup; active employees can read the internal directory and visible domain records. Soft-deleted presentations and their file metadata are hidden, including through the security-invoker overview view.
 
-`presentation_permissions` is a read-only RPC used by server route guards. Owners may edit metadata through the scheduled Vancouver date; completed metadata requires an administrator. File-management permission remains available to owners after completion. Administrators may manage any visible presentation. These are authorization primitives for future workflows, not mutation endpoints. Direct updates to roles, active state, password-setup flags, or business records are denied to both application roles.
+`presentation_permissions` is a read-only RPC used by server route guards. Owners may edit metadata through the scheduled Vancouver date; completed metadata requires an administrator. File-management permission remains available to owners after completion. Administrators may manage any visible presentation. These are authorization primitives for future editing and file workflows. Registration uses the separate `register_presentation` RPC. Direct updates to roles, active state, password-setup flags, or business records remain denied to both application roles.
 
 Sign-out clears this browser's credentials and revokes its refresh token. A password update requests global refresh-token revocation and requires another sign-in. Supabase access tokens already issued to other clients can remain valid until expiry; account deactivation/ban is checked independently on protected reads. If Auth is unavailable during sign-out, the browser cookies are still removed, but server-side revocation cannot be guaranteed.
 
@@ -87,10 +88,10 @@ Sign-out clears this browser's credentials and revokes its refresh token. A pass
 | `/auth/confirm`            | Public confirmation screen for invitation/recovery links; token consumed on POST |
 | `/auth/callback`           | Public PKCE session exchange; validates account and safe return destination      |
 | `/account/password`        | Verified active account required; supports initial setup and password changes    |
-| `/`                        | Protected home shell                                                             |
-| `/schedule`                | Protected schedule shell; no booking controls                                    |
+| `/`                        | Live next presentation, upcoming topics, and next available slots                |
+| `/schedule`                | Available, booked, and closed slots; 12-week navigation                          |
 | `/archive`                 | Protected archive shell; no live search                                          |
-| `/presentations/new`       | Protected registration placeholder                                               |
+| `/presentations/new`       | Slot selection guidance; `?slot=UUID` opens registration                         |
 | `/presentations/[id]`      | Requires a visible, existing presentation; content remains a placeholder         |
 | `/presentations/[id]/edit` | Additionally checks owner/date/admin permission; editing remains a placeholder   |
 
@@ -105,6 +106,7 @@ The confirmation/callback endpoints only establish authentication; they expose n
 | `presentation_slots`    | Date, slot number, open/closed state; multiple slots per day                                                |
 | `presentations`         | One presenter/slot, required title, optional category/description/reference URL, cancellation/soft deletion |
 | `presentation_files`    | One current PPTX/PDF reference per presentation; file metadata only                                         |
+| `schedule_slots`        | Available/closed slots and current bookings; underlying RLS is preserved                                    |
 | `presentation_overview` | Visible presentations with calculated status, presenter, category, and file IDs                             |
 
 A partial unique index prevents duplicate active bookings while cancellation/soft deletion releases the slot. Completion uses the following **America/Vancouver** midnight. The seed creates Tuesdays in `[today, today + 6 calendar months)` and preserves matching categories, slots, and closures when rerun. No sample employees or presentations are seeded. Files are metadata only; private buckets, upload validation, signed URLs, and cleanup remain Phase 6.
@@ -114,21 +116,23 @@ src/
   app/
     (auth)/                Login, password, confirmation UI, Auth Server Actions
     auth/callback/         PKCE callback handler
-    (workspace)/           Protected layout and application route shells
+    (workspace)/           Protected Home, schedule, registration; later route shells
     layout.tsx             Shared header, footer, metadata, main landmark
     globals.css            Tailwind theme and visual tokens
   components/
     auth/                  Accessible authentication forms
     layout/                Header, navigation, footer, placeholder layout
+    schedule/              Slot cards and the registration form
     ui/                    Buttons, icons, headings, empty states
   lib/
     auth/                  Verified sessions, route guards, input/redirect validation
     supabase/              Server client and validated environment configuration
+    schedule/              Calendar dates, authorized reads, registration validation
     config.ts              Application name and confirmed constants
   proxy.ts                 Session refresh, initial route guard, cache headers
   types/                   Generated database types and domain vocabulary
 supabase/
-  migrations/              Foundation and Phase 2 authorization SQL
+  migrations/              Foundation, authorization, and transactional registration SQL
   templates/               Invitation and recovery email templates
   config.toml              Local service/Auth configuration
   seed.sql                 Categories and initial weekly slots
@@ -151,7 +155,7 @@ npm run test:ui
 
 `check` runs lint, route-aware TypeScript checking, unit tests, PostgreSQL schema/RLS tests, and a production build. Unit and database tests do not require Docker. Browser tests require this project's running **local** Supabase stack, `.env.local` pointing to it, and a fresh production build. They start the application on port 3100, create temporary `.test` accounts, exercise real local Auth/PostgREST/Mailpit services, and remove their own records. No real employee mail is sent. Tests refuse non-local database targets.
 
-If Google Chrome is installed, use `PLAYWRIGHT_CHANNEL=chrome npm run test:ui` instead of downloading Chromium. UI checks run at desktop, tablet, and mobile widths. The shared authorization integration scenarios run once on desktop. Screenshots/traces are ignored local test artifacts and can contain test credentials; do not publish them. Automated accessibility checks supplement manual review.
+If Google Chrome is installed, use `PLAYWRIGHT_CHANNEL=chrome npm run test:ui` instead of downloading Chromium. UI checks run at desktop, tablet, and mobile widths. The shared authorization and concurrent-booking integration scenarios run once on desktop. Booking tests use separate database connections and deliberately held row locks to verify competing bookings, simultaneous closures, and access revocation during a wait. Screenshots/traces are ignored local test artifacts and can contain test credentials; do not publish them. Automated accessibility checks supplement manual review.
 
 For a production-style local run:
 
@@ -163,7 +167,7 @@ npm start
 ## Remaining work
 
 - Hosted Supabase/Vercel configuration, SMTP delivery, actual employee invitations, and initial administrator provisioning require the real project and domain.
-- Phases 3–7 remain unimplemented, including all storage access and business mutations.
+- Phases 4–7 remain unimplemented: editing/rescheduling/cancellation, archive/search/filters, file access, and administrative workflows. The complete Success Criteria status is in [docs/phase-3.md](./docs/phase-3.md).
 - The Phase 1 tooling limitation remains: Next.js's React lint plugins require the pinned ESLint 9 version. The dependency audit reports an upstream development-only `braces` advisory through that lint configuration; production dependencies are audited separately with `npm audit --omit=dev`. Avoid a forced tooling downgrade.
 
 Auth integration follows the official [Supabase SSR guide](https://supabase.com/docs/guides/auth/server-side/creating-a-client) and [Next.js authentication guide](https://nextjs.org/docs/app/guides/authentication).

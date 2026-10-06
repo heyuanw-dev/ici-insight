@@ -1,11 +1,24 @@
 import type { Metadata } from "next";
+import { ButtonLink } from "@/components/ui/button-link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 import { PageHeader } from "@/components/ui/page-header";
+import { SlotCard } from "@/components/schedule/slot-card";
+import { getSchedule, type ScheduleSlot } from "@/lib/schedule/data";
+import { addCalendarDays, formatPresentationDate } from "@/lib/schedule/dates";
 
 export const metadata: Metadata = { title: "Schedule" };
 
-export default function SchedulePage() {
+export default async function SchedulePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const query = await searchParams;
+  const schedule = await getSchedule(query.page, query.registered);
+  const groups = new Map<string, ScheduleSlot[]>();
+  for (const slot of schedule.slots)
+    groups.set(slot.date, [...(groups.get(slot.date) ?? []), slot]);
   return (
     <>
       <PageHeader
@@ -18,23 +31,104 @@ export default function SchedulePage() {
           Vancouver time
         </span>
       </PageHeader>
-      <section className="panel" aria-label="Presentation schedule">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-6 py-5">
-          <p className="text-sm font-semibold">Weekly presentations</p>
-          <span className="rounded-full bg-canvas px-3 py-1 text-xs font-medium text-muted">
-            Tuesdays at ICI Lab
-          </span>
+      {schedule.confirmation?.presentation && (
+        <div
+          role="status"
+          className="mb-8 rounded-xl border border-brand/25 bg-brand-soft p-5"
+        >
+          <p className="font-semibold">Your presentation is scheduled.</p>
+          <p className="mt-2 wrap-anywhere text-sm leading-7">
+            {schedule.confirmation.presentation.title} ·{" "}
+            {formatPresentationDate(schedule.confirmation.date)} · Slot{" "}
+            {schedule.confirmation.number}
+          </p>
         </div>
-        <EmptyState
-          icon="calendar"
-          title="A space for the next big idea"
-          description="Presentation dates, available slots, and the team’s upcoming topics will appear here. Registration is not available in this preview."
-        />
+      )}
+      <section aria-label="Presentation schedule">
+        <div className="mb-8 flex flex-col justify-between gap-4 border-b border-line pb-6 sm:flex-row sm:items-center">
+          <div>
+            <h2 className="text-lg font-semibold">
+              {schedule.page === 0 ? "Next 12 weeks" : "Later presentations"}
+            </h2>
+            <p className="mt-2 text-sm text-muted">
+              <time dateTime={schedule.start}>
+                {formatPresentationDate(schedule.start, true)}
+              </time>{" "}
+              –{" "}
+              <time dateTime={addCalendarDays(schedule.end, -1)}>
+                {formatPresentationDate(
+                  addCalendarDays(schedule.end, -1),
+                  true,
+                )}
+              </time>
+            </p>
+          </div>
+          <nav aria-label="Schedule dates" className="flex flex-wrap gap-2">
+            {schedule.page > 0 && (
+              <ButtonLink
+                href={
+                  schedule.page === 1
+                    ? "/schedule"
+                    : `/schedule?page=${schedule.page - 1}`
+                }
+                variant="secondary"
+              >
+                Previous 12 weeks
+              </ButtonLink>
+            )}
+            {schedule.hasNext && (
+              <ButtonLink
+                href={`/schedule?page=${schedule.page + 1}`}
+                variant="secondary"
+              >
+                Next 12 weeks
+              </ButtonLink>
+            )}
+          </nav>
+        </div>
+        {groups.size ? (
+          <div className="space-y-10">
+            {[...groups].map(([date, slots]) => (
+              <section key={date} aria-label={formatPresentationDate(date)}>
+                <div className="mb-4 flex flex-wrap items-center gap-3">
+                  <h2 className="text-lg font-semibold">
+                    <time dateTime={date}>{formatPresentationDate(date)}</time>
+                  </h2>
+                  {date === schedule.today && (
+                    <span className="rounded-full bg-brand-soft px-3 py-1 text-xs font-semibold text-brand">
+                      Today
+                    </span>
+                  )}
+                  <span className="text-xs text-muted">
+                    {slots.length} {slots.length === 1 ? "slot" : "slots"}
+                  </span>
+                </div>
+                <div className="grid items-start gap-4 md:grid-cols-2">
+                  {slots.map((slot) => (
+                    <SlotCard
+                      key={slot.id}
+                      slot={slot}
+                      employeeId={schedule.employeeId}
+                    />
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        ) : (
+          <div className="panel">
+            <EmptyState
+              icon="calendar"
+              title="No slots in this date range"
+              description={
+                schedule.hasNext
+                  ? "Check the next date range for more presentation slots."
+                  : "There are no presentation slots in this date range. Your workspace administrator can add dates to the schedule."
+              }
+            />
+          </div>
+        )}
       </section>
-      <p className="mt-5 text-sm leading-7 text-muted">
-        Have a paper, a demo, or a new perspective in mind? There’s always
-        something worth sharing.
-      </p>
     </>
   );
 }

@@ -53,14 +53,14 @@ test("primary navigation, home actions, and browser history work", async ({
   await page.getByRole("link", { name: "View upcoming presentations" }).click();
   await expect(page).toHaveURL("/schedule");
   await page
-    .getByRole("navigation")
+    .getByRole("navigation", { name: "Main navigation" })
     .getByRole("link", { name: "Archive", exact: true })
     .click();
   await expect(page).toHaveURL("/archive");
   await page.goBack();
   await expect(page).toHaveURL("/schedule");
   await page
-    .getByRole("navigation")
+    .getByRole("navigation", { name: "Main navigation" })
     .getByRole("link", { name: "Home", exact: true })
     .click();
   await page.getByRole("link", { name: "Browse presentation archive" }).click();
@@ -90,12 +90,12 @@ test("keyboard users can skip navigation and access password settings", async ({
   ).toEqual([]);
 });
 
-test("later workflow remains a placeholder; invalid and missing presentation IDs are not exposed", async ({
+test("registration requires a selected slot; invalid and missing presentation IDs are not exposed", async ({
   page,
 }) => {
   await page.goto("/presentations/new");
   await expect(
-    page.getByRole("heading", { name: "This space is getting ready" }),
+    page.getByRole("heading", { name: "Choose a presentation slot" }),
   ).toBeVisible();
   for (const path of [
     "/presentations/example",

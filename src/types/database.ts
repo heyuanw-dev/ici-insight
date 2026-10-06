@@ -89,6 +89,13 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
+            foreignKeyName: "presentation_files_presentation_id_fkey";
+            columns: ["presentation_id"];
+            isOneToOne: false;
+            referencedRelation: "schedule_slots";
+            referencedColumns: ["presentation_id"];
+          },
+          {
             foreignKeyName: "presentation_files_uploaded_by_fkey";
             columns: ["uploaded_by"];
             isOneToOne: false;
@@ -186,6 +193,13 @@ export type Database = {
             referencedRelation: "presentation_slots";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "presentations_slot_id_fkey";
+            columns: ["slot_id"];
+            isOneToOne: false;
+            referencedRelation: "schedule_slots";
+            referencedColumns: ["slot_id"];
+          },
         ];
       };
       users: {
@@ -267,6 +281,45 @@ export type Database = {
             referencedRelation: "presentation_slots";
             referencedColumns: ["id"];
           },
+          {
+            foreignKeyName: "presentations_slot_id_fkey";
+            columns: ["slot_id"];
+            isOneToOne: false;
+            referencedRelation: "schedule_slots";
+            referencedColumns: ["slot_id"];
+          },
+        ];
+      };
+      schedule_slots: {
+        Row: {
+          category_id: string | null;
+          category_name: string | null;
+          description: string | null;
+          is_open: boolean | null;
+          presentation_date: string | null;
+          presentation_id: string | null;
+          presenter_name: string | null;
+          presenter_user_id: string | null;
+          reference_url: string | null;
+          slot_id: string | null;
+          slot_number: number | null;
+          title: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "presentations_category_id_fkey";
+            columns: ["category_id"];
+            isOneToOne: false;
+            referencedRelation: "categories";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "presentations_presenter_user_id_fkey";
+            columns: ["presenter_user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
         ];
       };
     };
@@ -283,6 +336,16 @@ export type Database = {
           as_of?: string;
           cancelled_at: string;
           presentation_date: string;
+        };
+        Returns: string;
+      };
+      register_presentation: {
+        Args: {
+          p_category_id?: string;
+          p_description?: string;
+          p_reference_url?: string;
+          p_slot_id: string;
+          p_title: string;
         };
         Returns: string;
       };

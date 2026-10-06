@@ -1,13 +1,16 @@
 import Link from "next/link";
+import { SlotCard } from "@/components/schedule/slot-card";
+import { getHomeSchedule } from "@/lib/schedule/data";
 import { ButtonLink } from "@/components/ui/button-link";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Icon } from "@/components/ui/icon";
 
-export default function HomePage() {
+export default async function HomePage() {
+  const { booked, openSlots, employeeId } = await getHomeSchedule();
   return (
     <div className="space-y-12 sm:space-y-16">
       <section
-        className="grid items-center gap-10 lg:grid-cols-[1fr_320px] lg:gap-16"
+        className="grid items-center gap-10 lg:grid-cols-[1fr_380px] lg:gap-16"
         aria-labelledby="welcome-heading"
       >
         <div>
@@ -35,32 +38,34 @@ export default function HomePage() {
             </ButtonLink>
           </div>
         </div>
-        <aside
-          className="panel overflow-hidden"
-          aria-labelledby="weekly-heading"
-        >
-          <div className="flex items-center justify-between border-b border-line px-6 py-5">
-            <h2 id="weekly-heading" className="text-sm font-semibold">
-              Our weekly conversation
-            </h2>
-            <Icon name="calendar" className="size-5 text-brand" />
-          </div>
-          <div className="px-6 py-7">
-            <p className="text-xs font-semibold tracking-[0.14em] text-muted uppercase">
-              Make room for a new idea
-            </p>
-            <p className="mt-3 text-4xl font-semibold tracking-tight">
-              Tuesday<span className="text-brand">.</span>
-            </p>
-            <p className="mt-4 text-sm leading-7 text-muted">
-              A paper worth reading. A tool worth trying. A perspective worth
-              sharing.
-            </p>
-            <div className="mt-7 flex items-center gap-2.5 border-t border-line pt-5 text-xs text-muted">
-              <Icon name="clock" className="size-4" />
-              Scheduled in Vancouver time
+        <aside aria-labelledby="next-heading">
+          <h2 id="next-heading" className="eyebrow mb-4">
+            {booked.length
+              ? "Next presentation"
+              : "The next conversation starts here"}
+          </h2>
+          {booked[0] ? (
+            <SlotCard
+              slot={booked[0]}
+              employeeId={employeeId}
+              showDate
+              featured
+            />
+          ) : (
+            <div className="panel p-6">
+              <Icon name="calendar" className="mb-4 size-6 text-brand" />
+              <p className="text-lg font-semibold">
+                No presentations are currently scheduled.
+              </p>
+              <p className="mt-3 text-sm leading-7 text-muted">
+                Be the first to volunteer. A paper worth reading, a tool worth
+                trying, or a perspective worth sharing.
+              </p>
+              <ButtonLink href="/schedule" variant="secondary" className="mt-5">
+                Find an available slot
+              </ButtonLink>
             </div>
-          </div>
+          )}
         </aside>
       </section>
 
@@ -83,13 +88,74 @@ export default function HomePage() {
             <Icon name="arrow" className="size-4" />
           </Link>
         </div>
-        <div className="panel">
-          <EmptyState
-            icon="calendar"
-            title="The next conversation starts here"
-            description="Upcoming presentations and opportunities to share will appear here. There are no presentations to display yet."
-          />
+        {booked.length > 1 ? (
+          <div className="grid items-start gap-4 md:grid-cols-2">
+            {booked.slice(1).map((slot) => (
+              <SlotCard
+                key={slot.id}
+                slot={slot}
+                employeeId={employeeId}
+                showDate
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="panel">
+            <EmptyState
+              icon="calendar"
+              title={
+                booked.length
+                  ? "More conversations to come"
+                  : "Be the first to volunteer"
+              }
+              description={
+                booked.length
+                  ? "Our next presentation is featured above. Find an available slot to add your topic to the schedule."
+                  : "No presentations are currently scheduled. Choose an available slot and share something with the team."
+              }
+            />
+          </div>
+        )}
+      </section>
+
+      <section aria-labelledby="available-heading">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="eyebrow mb-2">Make room for a new idea</p>
+            <h2
+              id="available-heading"
+              className="text-2xl font-semibold tracking-tight"
+            >
+              Next opportunity to present
+            </h2>
+          </div>
+          <Link
+            href="/schedule"
+            className="inline-flex min-h-11 items-center rounded text-sm font-semibold text-brand hover:underline"
+          >
+            View all slots
+          </Link>
         </div>
+        {openSlots.length ? (
+          <div className="grid items-start gap-4 md:grid-cols-2">
+            {openSlots.map((slot) => (
+              <SlotCard
+                key={slot.id}
+                slot={slot}
+                employeeId={employeeId}
+                showDate
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="panel">
+            <EmptyState
+              icon="calendar"
+              title="No open slots available"
+              description="All current and future slots are booked or closed. Check back later or contact your workspace administrator."
+            />
+          </div>
+        )}
       </section>
 
       <section
