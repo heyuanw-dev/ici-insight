@@ -239,7 +239,7 @@ test.describe("authentication integration", () => {
       await signIn(page, account);
       await page.goto(`/presentations/${id}`);
       await expect(
-        page.getByRole("heading", { name: "Presentation details" }),
+        page.getByRole("heading", { name: "Test authorization" }),
       ).toBeVisible();
       await page.goto(`/presentations/${id}/edit`);
       await expect(

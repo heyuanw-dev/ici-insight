@@ -1,6 +1,6 @@
 # ICI AI Insight Hub
 
-Internal weekly AI presentation workspace for ICI Lab. [REQUIREMENTS.md](./REQUIREMENTS.md) is the source of truth. Phases 1–4 are implemented.
+Internal weekly AI presentation workspace for ICI Lab. [REQUIREMENTS.md](./REQUIREMENTS.md) is the source of truth. Phases 1–5 are implemented.
 
 ## Current scope
 
@@ -12,7 +12,9 @@ Internal weekly AI presentation workspace for ICI Lab. [REQUIREMENTS.md](./REQUI
 
 - Editing, rescheduling, and explicitly confirmed cancellation of your own upcoming presentations, including same-day changes. Moves preserve the original booking on failure; stale forms cannot overwrite newer changes. Cancelled records and files are retained.
 
-Archive search, file uploads/downloads, and administrative historical corrections, schedule management, and soft deletion remain deferred to Phases 5–7. Archive and presentation detail routes still display placeholders. Registration, upcoming edits/moves, and cancellation use restricted database functions; direct table writes remain denied, including for application administrators. See [Phase 4 implementation and Success Criteria](./docs/phase-4.md).
+- A live completed archive with partial-word search, presenter/category/year/date filters, pagination, file-availability indicators, and protected metadata detail pages.
+
+File uploads/downloads/browser preview and administrative historical corrections, schedule management, and soft deletion remain deferred to Phases 6–7. Registration, upcoming edits/moves, and cancellation use restricted database functions; direct table writes remain denied, including for application administrators. See [Phase 5 implementation and Success Criteria](./docs/phase-5.md).
 
 ## Run locally
 
@@ -92,9 +94,9 @@ Sign-out clears this browser's credentials and revokes its refresh token. A pass
 | `/account/password`        | Verified active account required; supports initial setup and password changes    |
 | `/`                        | Live next presentation, upcoming topics, and next available slots                |
 | `/schedule`                | Available, booked, and closed slots; 12-week navigation                          |
-| `/archive`                 | Protected archive shell; no live search                                          |
+| `/archive`                 | Completed presentations; search, filters, and pagination                         |
 | `/presentations/new`       | Slot selection guidance; `?slot=UUID` opens registration                         |
-| `/presentations/[id]`      | Requires a visible, existing presentation; content remains a placeholder         |
+| `/presentations/[id]`      | Protected metadata details and file availability; preview/download deferred      |
 | `/presentations/[id]/edit` | Owner/date/admin authorization; upcoming edits, rescheduling, and cancellation   |
 
 The confirmation/callback endpoints only establish authentication; they expose no internal content. Invalid, missing, unauthorized, and soft-deleted presentation IDs share the same not-found screen.
@@ -111,6 +113,8 @@ The confirmation/callback endpoints only establish authentication; they expose n
 | `schedule_slots`        | Available/closed slots and current bookings; underlying RLS is preserved                                              |
 | `presentation_overview` | Visible presentations with calculated status, presenter, category, and file IDs                                       |
 
+The archive derives completion from Vancouver midnight on each database read. `archive_presentations` is a security-invoker view of completed metadata; `search_archive` and `archive_filter_options` are read-only functions that preserve employee RLS. Search matches all entered words as case-insensitive literal substrings across title, presenter, description, and category. Filters combine, date bounds are inclusive, and pages contain up to 12 results. Search state stays in the URL for reloads, history, and detail-page return links. No search service, status job, or manual archive action is needed.
+
 A partial unique index prevents duplicate active bookings while cancellation/soft deletion releases the slot. Completion uses the following **America/Vancouver** midnight. The seed creates Tuesdays in `[today, today + 6 calendar months)` and preserves matching categories, slots, and closures when rerun. No sample employees or presentations are seeded. Files are metadata only; private buckets, upload validation, signed URLs, and cleanup remain Phase 6.
 
 ```text
@@ -118,15 +122,17 @@ src/
   app/
     (auth)/                Login, password, confirmation UI, Auth Server Actions
     auth/callback/         PKCE callback handler
-    (workspace)/           Protected Home, schedule, registration/editing; later route shells
+    (workspace)/           Protected Home, schedule, registration/editing, archive, and details
     layout.tsx             Shared header, footer, metadata, main landmark
     globals.css            Tailwind theme and visual tokens
   components/
+    archive/               Search filters, archive cards, file-availability indicators
     auth/                  Accessible authentication forms
     layout/                Header, navigation, footer, placeholder layout
     schedule/              Slot cards, shared metadata fields, registration and editing forms
     ui/                    Buttons, icons, headings, empty states
   lib/
+    archive/               Validated archive queries and protected detail reads
     auth/                  Verified sessions, route guards, input/redirect validation
     supabase/              Server client and validated environment configuration
     schedule/              Calendar dates, authorized reads, registration/edit validation
@@ -134,7 +140,7 @@ src/
   proxy.ts                 Session refresh, initial route guard, cache headers
   types/                   Generated database types and domain vocabulary
 supabase/
-  migrations/              Foundation, authorization, transactional registration/edit/cancel SQL
+  migrations/              Foundation, authorization, booking/edit/cancel SQL, and read-only archive queries
   templates/               Invitation and recovery email templates
   config.toml              Local service/Auth configuration
   seed.sql                 Categories and initial weekly slots
@@ -169,7 +175,7 @@ npm start
 ## Remaining work
 
 - Hosted Supabase/Vercel configuration, SMTP delivery, actual employee invitations, and initial administrator provisioning require the real project and domain.
-- Phases 5–7 remain unimplemented: archive/search/filters, file access, and administrative workflows. The complete Success Criteria status is in [docs/phase-4.md](./docs/phase-4.md).
+- Phases 6–7 remain unimplemented: file upload/replacement/preview/download and administrative workflows. The complete Success Criteria status is in [docs/phase-5.md](./docs/phase-5.md).
 - The Phase 1 tooling limitation remains: Next.js's React lint plugins require the pinned ESLint 9 version. The dependency audit reports an upstream development-only `braces` advisory through that lint configuration; production dependencies are audited separately with `npm audit --omit=dev`. Avoid a forced tooling downgrade.
 
 Auth integration follows the official [Supabase SSR guide](https://supabase.com/docs/guides/auth/server-side/creating-a-client) and [Next.js authentication guide](https://nextjs.org/docs/app/guides/authentication).

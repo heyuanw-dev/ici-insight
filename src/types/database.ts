@@ -78,6 +78,13 @@ export type Database = {
             foreignKeyName: "presentation_files_presentation_id_fkey";
             columns: ["presentation_id"];
             isOneToOne: false;
+            referencedRelation: "archive_presentations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "presentation_files_presentation_id_fkey";
+            columns: ["presentation_id"];
+            isOneToOne: false;
             referencedRelation: "presentation_overview";
             referencedColumns: ["id"];
           },
@@ -243,6 +250,56 @@ export type Database = {
       };
     };
     Views: {
+      archive_presentations: {
+        Row: {
+          category_id: string | null;
+          category_name: string | null;
+          created_at: string | null;
+          description: string | null;
+          id: string | null;
+          pdf_file_id: string | null;
+          powerpoint_file_id: string | null;
+          presentation_date: string | null;
+          presenter_name: string | null;
+          presenter_user_id: string | null;
+          reference_url: string | null;
+          slot_id: string | null;
+          slot_number: number | null;
+          status: string | null;
+          title: string | null;
+          updated_at: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "presentations_category_id_fkey";
+            columns: ["category_id"];
+            isOneToOne: false;
+            referencedRelation: "categories";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "presentations_presenter_user_id_fkey";
+            columns: ["presenter_user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "presentations_slot_id_fkey";
+            columns: ["slot_id"];
+            isOneToOne: false;
+            referencedRelation: "presentation_slots";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "presentations_slot_id_fkey";
+            columns: ["slot_id"];
+            isOneToOne: false;
+            referencedRelation: "schedule_slots";
+            referencedColumns: ["slot_id"];
+          },
+        ];
+      };
       presentation_overview: {
         Row: {
           category_id: string | null;
@@ -327,6 +384,14 @@ export type Database = {
       };
     };
     Functions: {
+      archive_filter_options: {
+        Args: Record<PropertyKey, never>;
+        Returns: {
+          filter_type: string;
+          label: string;
+          value: string;
+        }[];
+      };
       cancel_presentation: {
         Args: { p_confirm?: boolean; p_id: string; p_revision: number };
         Returns: string;
@@ -355,6 +420,40 @@ export type Database = {
           p_title: string;
         };
         Returns: string;
+      };
+      search_archive: {
+        Args: {
+          p_category_id?: string;
+          p_date_from?: string;
+          p_date_to?: string;
+          p_presenter_id?: string;
+          p_query?: string;
+          p_year?: number;
+        };
+        Returns: {
+          category_id: string | null;
+          category_name: string | null;
+          created_at: string | null;
+          description: string | null;
+          id: string | null;
+          pdf_file_id: string | null;
+          powerpoint_file_id: string | null;
+          presentation_date: string | null;
+          presenter_name: string | null;
+          presenter_user_id: string | null;
+          reference_url: string | null;
+          slot_id: string | null;
+          slot_number: number | null;
+          status: string | null;
+          title: string | null;
+          updated_at: string | null;
+        }[];
+        SetofOptions: {
+          from: "*";
+          to: "archive_presentations";
+          isOneToOne: false;
+          isSetofReturn: true;
+        };
       };
       update_presentation: {
         Args: {
