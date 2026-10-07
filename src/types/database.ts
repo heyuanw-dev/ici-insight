@@ -141,6 +141,7 @@ export type Database = {
           id: string;
           presenter_user_id: string;
           reference_url: string | null;
+          revision: number;
           slot_id: string;
           title: string;
           updated_at: string;
@@ -154,6 +155,7 @@ export type Database = {
           id?: string;
           presenter_user_id: string;
           reference_url?: string | null;
+          revision?: number;
           slot_id: string;
           title: string;
           updated_at?: string;
@@ -167,6 +169,7 @@ export type Database = {
           id?: string;
           presenter_user_id?: string;
           reference_url?: string | null;
+          revision?: number;
           slot_id?: string;
           title?: string;
           updated_at?: string;
@@ -324,6 +327,10 @@ export type Database = {
       };
     };
     Functions: {
+      cancel_presentation: {
+        Args: { p_confirm?: boolean; p_id: string; p_revision: number };
+        Returns: string;
+      };
       presentation_permissions: {
         Args: { presentation_id: string };
         Returns: {
@@ -344,6 +351,18 @@ export type Database = {
           p_category_id?: string;
           p_description?: string;
           p_reference_url?: string;
+          p_slot_id: string;
+          p_title: string;
+        };
+        Returns: string;
+      };
+      update_presentation: {
+        Args: {
+          p_category_id?: string;
+          p_description?: string;
+          p_id: string;
+          p_reference_url?: string;
+          p_revision: number;
           p_slot_id: string;
           p_title: string;
         };

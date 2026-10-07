@@ -15,7 +15,12 @@ export default async function SchedulePage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const query = await searchParams;
-  const schedule = await getSchedule(query.page, query.registered);
+  const noticeKind = query.cancelled
+    ? "cancelled"
+    : query.updated
+      ? "updated"
+      : "registered";
+  const schedule = await getSchedule(query.page, query[noticeKind], noticeKind);
   const groups = new Map<string, ScheduleSlot[]>();
   for (const slot of schedule.slots)
     groups.set(slot.date, [...(groups.get(slot.date) ?? []), slot]);
@@ -31,17 +36,30 @@ export default async function SchedulePage({
           Vancouver time
         </span>
       </PageHeader>
-      {schedule.confirmation?.presentation && (
+      {schedule.confirmation && (
         <div
           role="status"
           className="mb-8 rounded-xl border border-brand/25 bg-brand-soft p-5"
         >
-          <p className="font-semibold">Your presentation is scheduled.</p>
+          <p className="font-semibold">
+            {schedule.confirmation.kind === "cancelled"
+              ? "Presentation cancelled."
+              : schedule.confirmation.kind === "updated"
+                ? "Presentation updated."
+                : "Your presentation is scheduled."}
+          </p>
           <p className="mt-2 wrap-anywhere text-sm leading-7">
-            {schedule.confirmation.presentation.title} ·{" "}
+            {schedule.confirmation.title} ·{" "}
             {formatPresentationDate(schedule.confirmation.date)} · Slot{" "}
             {schedule.confirmation.number}
           </p>
+          {schedule.confirmation.kind === "cancelled" && (
+            <p className="mt-2 text-sm leading-7">
+              The record and any files have been retained. The slot is available
+              for booking if it is still open, current or future, and has not
+              been booked again.
+            </p>
+          )}
         </div>
       )}
       <section aria-label="Presentation schedule">

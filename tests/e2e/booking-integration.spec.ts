@@ -1,105 +1,11 @@
-import { spawn } from "node:child_process";
-import { once } from "node:events";
-import { createClient } from "@supabase/supabase-js";
 import {
   test,
   expect,
   localSql,
-  localSupabase,
   createAccount,
   removeAccount,
 } from "./schedule-fixtures";
-import type { Account } from "./fixtures";
-
-async function clientFor(account: Account) {
-  const status = localSupabase();
-  const client = createClient(status.API_URL, status.PUBLISHABLE_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const { error } = await client.auth.signInWithPassword({
-    email: account.email,
-    password: account.password,
-  });
-  if (error)
-    throw new Error("Could not sign in a local integration-test employee.");
-  return client;
-}
-
-// A separate PostgreSQL connection deliberately holds the slot lock so tests
-// verify real contention, rather than hoping two requests happen to overlap.
-async function holdSlot(id: string, close = false) {
-  const process = spawn(
-    "docker",
-    [
-      "exec",
-      "-i",
-      "supabase_db_ici-insight-hub",
-      "psql",
-      "-U",
-      "postgres",
-      "-d",
-      "postgres",
-      "-qAt",
-      "-v",
-      "ON_ERROR_STOP=1",
-    ],
-    { stdio: ["pipe", "pipe", "pipe"] },
-  );
-  const exited = once(process, "exit");
-  const ready = new Promise<void>((resolve, reject) => {
-    let output = "";
-    const timeout = setTimeout(
-      () => reject(new Error("Test slot lock timed out.")),
-      10000,
-    );
-    process.stdout.on("data", (data: Buffer) => {
-      output += data.toString();
-      if (output.includes("LOCK_HELD")) {
-        clearTimeout(timeout);
-        resolve();
-      }
-    });
-    process.once("error", (error) => {
-      clearTimeout(timeout);
-      reject(error);
-    });
-    process.once("exit", () => {
-      clearTimeout(timeout);
-      if (!output.includes("LOCK_HELD"))
-        reject(new Error("Test lock connection closed unexpectedly."));
-    });
-  });
-  process.stdin.write(
-    `begin; ${close ? `update public.presentation_slots set is_open=false where id='${id}';` : `select id from public.presentation_slots where id='${id}' for update;`} select 'LOCK_HELD';\n`,
-  );
-  try {
-    await ready;
-  } catch (error) {
-    process.stdin.end("rollback;\n");
-    throw error;
-  }
-  let released = false;
-  return async () => {
-    if (!released) {
-      released = true;
-      process.stdin.end("commit;\n");
-      await exited;
-    }
-  };
-}
-async function waitForBookings(count: number) {
-  await expect
-    .poll(
-      () =>
-        Number(
-          localSql(
-            "select count(*) from pg_stat_activity where pid <> pg_backend_pid() and wait_event_type='Lock' and query ilike '%register_presentation%';",
-          ),
-        ),
-      { timeout: 10000 },
-    )
-    .toBeGreaterThanOrEqual(count);
-}
+import { clientFor, holdSlot, waitForBookings } from "./database-locks";
 
 test("two simultaneous bookings produce exactly one winner; another same-day slot remains bookable", async ({
   account,
@@ -165,7 +71,7 @@ test("a concurrent closure is respected after the lock wait and never creates a 
 }) => {
   const target = slots.create(1),
     client = await clientFor(account);
-  const release = await holdSlot(target.id, true);
+  const release = await holdSlot(target.id, "close");
   try {
     const request = Promise.resolve(
       client.rpc("register_presentation", {

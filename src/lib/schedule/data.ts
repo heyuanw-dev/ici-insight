@@ -57,7 +57,11 @@ function slotFrom(row: ScheduleRow): ScheduleSlot {
   };
 }
 
-export async function getSchedule(requestedPage: unknown, registered: unknown) {
+export async function getSchedule(
+  requestedPage: unknown,
+  noticeId: unknown,
+  noticeKind: "registered" | "updated" | "cancelled" = "registered",
+) {
   const employee = await requireEmployee();
   const client = await createSupabaseServerClient();
   const today = vancouverToday();
@@ -69,18 +73,38 @@ export async function getSchedule(requestedPage: unknown, registered: unknown) {
     .limit(1)
     .maybeSingle();
   if (latest.error) throw new Error("The schedule could not be loaded.");
-  let confirmation: ScheduleSlot | null = null;
-  if (typeof registered === "string" && isUuid(registered)) {
-    const result = await client
-      .from("schedule_slots")
-      .select("*")
-      .eq("presentation_id", registered)
-      .eq("presenter_user_id", employee.id)
-      .gte("presentation_date", today)
-      .maybeSingle();
+  let confirmation: {
+    id: string;
+    title: string;
+    date: string;
+    number: number;
+    kind: typeof noticeKind;
+  } | null = null;
+  if (typeof noticeId === "string" && isUuid(noticeId)) {
+    let query = client
+      .from("presentation_overview")
+      .select("id, title, presentation_date, slot_number")
+      .eq("id", noticeId)
+      .eq("status", noticeKind === "cancelled" ? "cancelled" : "upcoming");
+    if (employee.role !== "admin")
+      query = query.eq("presenter_user_id", employee.id);
+    const result = await query.maybeSingle();
     if (result.error)
-      throw new Error("The booking confirmation could not be loaded.");
-    if (result.data) confirmation = slotFrom(result.data);
+      throw new Error("The presentation confirmation could not be loaded.");
+    const row = result.data;
+    if (
+      row?.id &&
+      row.title &&
+      row.presentation_date &&
+      row.slot_number !== null
+    )
+      confirmation = {
+        id: row.id,
+        title: row.title,
+        date: row.presentation_date,
+        number: row.slot_number,
+        kind: noticeKind,
+      };
   }
   const page =
     requestedPage ??

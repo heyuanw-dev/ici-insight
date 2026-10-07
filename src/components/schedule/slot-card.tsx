@@ -87,6 +87,15 @@ export function SlotCard({
               is closed.
             </p>
           )}
+          {presentation.presenterId === employeeId && (
+            <ButtonLink
+              href={{ pathname: `/presentations/${presentation.id}/edit` }}
+              variant="secondary"
+              className="mt-5 w-full sm:w-auto"
+            >
+              Edit presentation
+            </ButtonLink>
+          )}
         </>
       ) : slot.isOpen ? (
         <>
