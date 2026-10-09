@@ -78,8 +78,8 @@ test("archive orders completed presentations, omits hidden/current records, and 
     page.getByRole("link", { name: "Edit presentation", exact: true }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole("link", { name: /Download|Preview/ }),
-  ).toHaveCount(0);
+    page.getByRole("link", { name: "Download PowerPoint" }),
+  ).toBeVisible();
   await expect(page.locator("main img")).toHaveCount(0);
   expect(
     (

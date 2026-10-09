@@ -57,7 +57,7 @@ content_path = "./supabase/templates/recovery.html"
 [storage]
 enabled = true
 file_size_limit = "50MB"
-# Private buckets and file authorization will be added in Phase 6.
+# The Phase 6 migration provisions the private presentation-slides bucket.
 
 [realtime]
 enabled = false

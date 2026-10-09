@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { ButtonLink } from "@/components/ui/button-link";
-import { FileAvailability } from "@/components/archive/file-availability";
+import { PresentationFiles } from "@/components/files/presentation-files";
 import { getPresentationDetails } from "@/lib/archive/data";
 import { archiveReturnPath, type ArchiveQuery } from "@/lib/archive/filters";
 import { formatPresentationDate } from "@/lib/schedule/dates";
@@ -15,7 +15,8 @@ export default async function PresentationPage({
   searchParams: Promise<ArchiveQuery>;
 }) {
   const { id } = await params;
-  const { presentation, canEdit } = await getPresentationDetails(id);
+  const { presentation, canEdit, canManageFiles } =
+    await getPresentationDetails(id);
   const query = await searchParams;
   const backToArchive =
     presentation.status === "completed" || Boolean(query.returnTo);
@@ -115,23 +116,7 @@ export default async function PresentationPage({
           </ButtonLink>
         )}
       </section>
-      <section
-        aria-labelledby="files-heading"
-        className="panel mt-6 p-6 sm:p-8"
-      >
-        <h2 id="files-heading" className="mb-4 text-lg font-semibold">
-          Presentation files
-        </h2>
-        <FileAvailability
-          hasPowerPoint={presentation.hasPowerPoint}
-          hasPdf={presentation.hasPdf}
-        />
-        {(presentation.hasPowerPoint || presentation.hasPdf) && (
-          <p className="mt-3 text-sm leading-7 text-muted">
-            Preview and download access are not available yet.
-          </p>
-        )}
-      </section>
+      <PresentationFiles id={id} canManage={canManageFiles} />
     </article>
   );
 }

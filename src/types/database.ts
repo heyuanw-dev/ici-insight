@@ -36,6 +36,90 @@ export type Database = {
         };
         Relationships: [];
       };
+      presentation_file_uploads: {
+        Row: {
+          completed_at: string | null;
+          created_at: string;
+          expected_file_id: string | null;
+          expires_at: string;
+          failed_at: string | null;
+          id: string;
+          kind: string;
+          mime_type: string;
+          object_path: string;
+          original_filename: string;
+          presentation_id: string;
+          size_bytes: number;
+          uploaded_by: string;
+        };
+        Insert: {
+          completed_at?: string | null;
+          created_at?: string;
+          expected_file_id?: string | null;
+          expires_at?: string;
+          failed_at?: string | null;
+          id?: string;
+          kind: string;
+          mime_type: string;
+          object_path: string;
+          original_filename: string;
+          presentation_id: string;
+          size_bytes: number;
+          uploaded_by: string;
+        };
+        Update: {
+          completed_at?: string | null;
+          created_at?: string;
+          expected_file_id?: string | null;
+          expires_at?: string;
+          failed_at?: string | null;
+          id?: string;
+          kind?: string;
+          mime_type?: string;
+          object_path?: string;
+          original_filename?: string;
+          presentation_id?: string;
+          size_bytes?: number;
+          uploaded_by?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "presentation_file_uploads_presentation_id_fkey";
+            columns: ["presentation_id"];
+            isOneToOne: false;
+            referencedRelation: "archive_presentations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "presentation_file_uploads_presentation_id_fkey";
+            columns: ["presentation_id"];
+            isOneToOne: false;
+            referencedRelation: "presentation_overview";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "presentation_file_uploads_presentation_id_fkey";
+            columns: ["presentation_id"];
+            isOneToOne: false;
+            referencedRelation: "presentations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "presentation_file_uploads_presentation_id_fkey";
+            columns: ["presentation_id"];
+            isOneToOne: false;
+            referencedRelation: "schedule_slots";
+            referencedColumns: ["presentation_id"];
+          },
+          {
+            foreignKeyName: "presentation_file_uploads_uploaded_by_fkey";
+            columns: ["uploaded_by"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       presentation_files: {
         Row: {
           bucket: string;
@@ -395,6 +479,41 @@ export type Database = {
       cancel_presentation: {
         Args: { p_confirm?: boolean; p_id: string; p_revision: number };
         Returns: string;
+      };
+      complete_file_upload: {
+        Args: { p_auth_user_id: string; p_upload_id: string };
+        Returns: string;
+      };
+      prepare_file_upload: {
+        Args: {
+          p_expected_file_id?: string;
+          p_filename: string;
+          p_kind: string;
+          p_mime_type: string;
+          p_presentation_id: string;
+          p_size_bytes: number;
+        };
+        Returns: {
+          completed_at: string | null;
+          created_at: string;
+          expected_file_id: string | null;
+          expires_at: string;
+          failed_at: string | null;
+          id: string;
+          kind: string;
+          mime_type: string;
+          object_path: string;
+          original_filename: string;
+          presentation_id: string;
+          size_bytes: number;
+          uploaded_by: string;
+        };
+        SetofOptions: {
+          from: "*";
+          to: "presentation_file_uploads";
+          isOneToOne: true;
+          isSetofReturn: false;
+        };
       };
       presentation_permissions: {
         Args: { presentation_id: string };

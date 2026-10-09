@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ButtonLink } from "@/components/ui/button-link";
 import { formatPresentationDate } from "@/lib/schedule/dates";
 import type { ScheduleSlot } from "@/lib/schedule/data";
@@ -44,7 +45,12 @@ export function SlotCard({
           <h3
             className={`wrap-anywhere font-semibold tracking-tight ${featured ? "text-2xl" : "text-lg"}`}
           >
-            {presentation.title}
+            <Link
+              href={{ pathname: `/presentations/${presentation.id}` }}
+              className="rounded hover:text-brand hover:underline"
+            >
+              {presentation.title}
+            </Link>
           </h3>
           <p className="mt-2 wrap-anywhere text-sm text-muted">
             Presented by{" "}

@@ -44,6 +44,15 @@ export async function proxy(request: NextRequest) {
     request.nextUrl.pathname,
   );
   if (!verified && !publicRoute) {
+    if (request.nextUrl.pathname.startsWith("/api/")) {
+      const denied = NextResponse.json(
+        { error: "Sign in to access presentation files." },
+        { status: 401 },
+      );
+      response.cookies.getAll().forEach((cookie) => denied.cookies.set(cookie));
+      denied.headers.set("Cache-Control", "private, no-store");
+      return denied;
+    }
     const destination = request.nextUrl.clone();
     destination.pathname = "/login";
     destination.search = "";

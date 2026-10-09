@@ -129,5 +129,6 @@ export async function getPresentationDetails(id: string) {
   return {
     presentation: presentationFrom(data),
     canEdit: permissions.can_edit_metadata && data.status === "upcoming",
+    canManageFiles: permissions.can_manage_files,
   };
 }

@@ -1,6 +1,6 @@
 # ICI AI Insight Hub
 
-Internal weekly AI presentation workspace for ICI Lab. [REQUIREMENTS.md](./REQUIREMENTS.md) is the source of truth. Phases 1–5 are implemented.
+Internal weekly AI presentation workspace for ICI Lab. [REQUIREMENTS.md](./REQUIREMENTS.md) is the source of truth. Phases 1–6 are implemented.
 
 ## Current scope
 
@@ -14,7 +14,9 @@ Internal weekly AI presentation workspace for ICI Lab. [REQUIREMENTS.md](./REQUI
 
 - A live completed archive with partial-word search, presenter/category/year/date filters, pagination, file-availability indicators, and protected metadata detail pages.
 
-File uploads/downloads/browser preview and administrative historical corrections, schedule management, and soft deletion remain deferred to Phases 6–7. Registration, upcoming edits/moves, and cancellation use restricted database functions; direct table writes remain denied, including for application administrators. See [Phase 5 implementation and Success Criteria](./docs/phase-5.md).
+- Private PowerPoint/PDF upload and replacement, including after completion, authenticated PowerPoint download, and browser PDF preview. Presenters manage their own slides; administrators manage any visible presentation's slides. Replacements preserve current files until validation and an atomic save succeed.
+
+Administrative historical corrections, schedule management, and soft deletion remain Phase 7. Business changes use restricted database functions; direct table writes remain denied to employees, including application administrators. See [Phase 6 implementation and Success Criteria](./docs/phase-6.md).
 
 ## Run locally
 
@@ -26,7 +28,7 @@ npm run db:start
 cp .env.example .env.local
 ```
 
-Set `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local` to the **local publishable key** shown by `db:start` or `npx supabase status`. Keep the other example values for the default local setup. Do not copy a secret or service-role key into that variable. This phase does not use a privileged key in the application.
+For a fresh checkout, set `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env.local` to the **local publishable key** shown by `db:start` or `npx supabase status`. Set `SUPABASE_SERVICE_ROLE_KEY` to the **local service-role key** for server-only file validation, publication, and streaming. Never put the privileged key in a `NEXT_PUBLIC_` variable. Keep the other example values for the default local setup. Preserve an existing `.env.local` instead of copying over it.
 
 ```sh
 npm run dev
@@ -70,70 +72,82 @@ No hosted project has been configured or deployed. Before using a hosted environ
 - Set the Supabase Auth **Site URL** and Vercel `APP_URL` to the same canonical HTTPS origin. Allow that origin's `/auth/callback` redirect. Use a separate Supabase project for preview environments if they need authentication.
 - Copy [invite.html](./supabase/templates/invite.html) and [recovery.html](./supabase/templates/recovery.html) into the corresponding Supabase Auth email templates. These use `SiteURL` and a one-time token hash to open `/auth/confirm`; merely loading the page does not consume the token.
 - Configure authentication email delivery/SMTP and verify delivery, expiration, and redirects with the deployed origin. Invite initial employees and establish the first administrator in Supabase administration.
-- Set the three required environment variables from `.env.example` in Vercel before building.
+- Set the four environment variables from `.env.example` in Vercel, including the server-only `SUPABASE_SERVICE_ROLE_KEY`, before building. Apply the Phase 6 migration to create the private `presentation-slides` bucket; keep it private and do not add client read/write policies.
+- Confirm Supabase's project-wide Storage size limit permits the bucket's configured 50 MB limit. File transfers go directly to Storage; the app validates and saves them afterward. Verify a maximum-size upload and PDF preview on the hosted origin.
 
 `supabase/config.toml` configures **local** services only. In particular, `[auth].enable_signup = false` blocks public registration, while `[auth.email].enable_signup = true` keeps the email provider available for invited users' sign-in and recovery. The browser tests also verify that direct public signup is rejected. See the [Supabase provider configuration clarification](https://github.com/supabase/supabase/issues/40582) and [Auth configuration documentation](https://supabase.com/docs/guides/auth/general-configuration).
 
 ## Authentication and authorization
 
-All Supabase calls from the app run on the server using the publishable key and the employee's session. There is no browser Auth client, privileged key, or local-storage token. Session cookies are `HttpOnly`, `SameSite=Lax`, and `Secure` on HTTPS. The Next.js proxy refreshes and verifies tokens, while server guards use `getUser()` and the current application profile to verify employee membership and role. Private responses use `Cache-Control: private, no-store`. Return destinations are restricted to known internal routes. Credential mutations use POST Server Actions and Next.js origin checks.
+Authentication and metadata calls run on the server using the publishable key and the employee's session. There is no browser Auth client or local-storage session token. Session cookies are `HttpOnly`, `SameSite=Lax`, and `Secure` on HTTPS. The Next.js proxy refreshes and verifies tokens, while server guards use `getUser()` and the current application profile to verify employee membership and role. Private responses use `Cache-Control: private, no-store`. Return destinations are restricted to known internal routes. Credential mutations use POST Server Actions and Next.js origin checks.
+
+File orchestration additionally uses a server-only service-role client after employee/permission checks. The browser receives an upload-only token for one immutable object; it never receives a privileged key or a signed read URL. Upload routes enforce the configured `APP_URL` origin. Downloads and PDF byte-range requests pass through authenticated application endpoints, rechecking active membership and non-deleted presentation visibility each time. No client Storage policies are granted. Publication rechecks the uploader's account and ownership/admin role in SQL.
 
 The database independently resolves an active, confirmed, unbanned employee from `auth.uid()`. Completed password setup is required for domain reads. Anonymous and unlinked identities cannot read internal data. Employees can read their own access-status profile before password setup; active employees can read the internal directory and visible domain records. Soft-deleted presentations and their file metadata are hidden, including through the security-invoker overview view.
 
-`presentation_permissions` is a read-only RPC used by server route guards. Owners may edit metadata through the scheduled Vancouver date; completed metadata requires an administrator. File-management permission remains available to owners after completion. Administrators may manage any visible presentation. The upcoming workflow uses `register_presentation`, `update_presentation`, and `cancel_presentation` RPCs. File management and historical administrative mutations remain future workflows. Direct updates to roles, active state, password-setup flags, or business records remain denied to both application roles.
+`presentation_permissions` is a read-only RPC used by server route guards. Owners may edit metadata through the scheduled Vancouver date; completed metadata requires an administrator. File-management permission remains available to owners after completion. Administrators may manage any visible presentation. The upcoming workflow uses `register_presentation`, `update_presentation`, and `cancel_presentation` RPCs. File preparation uses `prepare_file_upload`; only the server can call `complete_file_upload` after content validation. Historical administrative metadata mutations remain Phase 7. Direct updates to roles, active state, password-setup flags, or business records remain denied to both application roles.
 
 Sign-out clears this browser's credentials and revokes its refresh token. A password update requests global refresh-token revocation and requires another sign-in. Supabase access tokens already issued to other clients can remain valid until expiry; account deactivation/ban is checked independently on protected reads. If Auth is unavailable during sign-out, the browser cookies are still removed, but server-side revocation cannot be guaranteed.
 
 ## Routes
 
-| Route                      | Current behavior                                                                 |
-| -------------------------- | -------------------------------------------------------------------------------- |
-| `/login`                   | Public invited-account sign-in; `?mode=recovery` displays password recovery      |
-| `/auth/confirm`            | Public confirmation screen for invitation/recovery links; token consumed on POST |
-| `/auth/callback`           | Public PKCE session exchange; validates account and safe return destination      |
-| `/account/password`        | Verified active account required; supports initial setup and password changes    |
-| `/`                        | Live next presentation, upcoming topics, and next available slots                |
-| `/schedule`                | Available, booked, and closed slots; 12-week navigation                          |
-| `/archive`                 | Completed presentations; search, filters, and pagination                         |
-| `/presentations/new`       | Slot selection guidance; `?slot=UUID` opens registration                         |
-| `/presentations/[id]`      | Protected metadata details and file availability; preview/download deferred      |
-| `/presentations/[id]/edit` | Owner/date/admin authorization; upcoming edits, rescheduling, and cancellation   |
+| Route                                              | Current behavior                                                                     |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `/login`                                           | Public invited-account sign-in; `?mode=recovery` displays password recovery          |
+| `/auth/confirm`                                    | Public confirmation screen for invitation/recovery links; token consumed on POST     |
+| `/auth/callback`                                   | Public PKCE session exchange; validates account and safe return destination          |
+| `/account/password`                                | Verified active account required; supports initial setup and password changes        |
+| `/`                                                | Live next presentation, upcoming topics, and next available slots                    |
+| `/schedule`                                        | Available, booked, and closed slots; 12-week navigation                              |
+| `/archive`                                         | Completed presentations; search, filters, and pagination                             |
+| `/presentations/new`                               | Slot selection guidance; `?slot=UUID` opens registration                             |
+| `/presentations/[id]`                              | Protected details, PowerPoint download, PDF preview, and authorized slide management |
+| `/presentations/[id]/edit`                         | Owner/date/admin authorization; upcoming edits, rescheduling, and cancellation       |
+| `/api/presentations/[id]/files/uploads`            | POST: authorize and prepare an upload-only Storage URL                               |
+| `/api/presentations/[id]/files/uploads/[uploadId]` | POST: validate stored bytes and publish atomically                                   |
+| `/api/presentations/[id]/files/[kind]`             | GET/HEAD: authenticated PowerPoint attachment or inline PDF, including byte ranges   |
 
 The confirmation/callback endpoints only establish authentication; they expose no internal content. Invalid, missing, unauthorized, and soft-deleted presentation IDs share the same not-found screen.
 
 ## Database and structure
 
-| Entity                  | Purpose                                                                                                               |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `users`                 | Stable employee identity, optional Auth link, name/email, protected role/active state, password setup state           |
-| `categories`            | Category names, ordering, active state                                                                                |
-| `presentation_slots`    | Date, slot number, open/closed state; multiple slots per day                                                          |
-| `presentations`         | One presenter/slot, required title, optional category/description/reference URL, cancellation/soft deletion, revision |
-| `presentation_files`    | One current PPTX/PDF reference per presentation; file metadata only                                                   |
-| `schedule_slots`        | Available/closed slots and current bookings; underlying RLS is preserved                                              |
-| `presentation_overview` | Visible presentations with calculated status, presenter, category, and file IDs                                       |
+| Entity                      | Purpose                                                                                                               |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `users`                     | Stable employee identity, optional Auth link, name/email, protected role/active state, password setup state           |
+| `categories`                | Category names, ordering, active state                                                                                |
+| `presentation_slots`        | Date, slot number, open/closed state; multiple slots per day                                                          |
+| `presentations`             | One presenter/slot, required title, optional category/description/reference URL, cancellation/soft deletion, revision |
+| `presentation_files`        | One current PPTX/PDF reference per presentation; file metadata only                                                   |
+| `presentation_file_uploads` | Private upload intents, expected current file IDs, expiry, and publication/failure state                              |
+| `schedule_slots`            | Available/closed slots and current bookings; underlying RLS is preserved                                              |
+| `presentation_overview`     | Visible presentations with calculated status, presenter, category, and file IDs                                       |
 
 The archive derives completion from Vancouver midnight on each database read. `archive_presentations` is a security-invoker view of completed metadata; `search_archive` and `archive_filter_options` are read-only functions that preserve employee RLS. Search matches all entered words as case-insensitive literal substrings across title, presenter, description, and category. Filters combine, date bounds are inclusive, and pages contain up to 12 results. Search state stays in the URL for reloads, history, and detail-page return links. No search service, status job, or manual archive action is needed.
 
-A partial unique index prevents duplicate active bookings while cancellation/soft deletion releases the slot. Completion uses the following **America/Vancouver** midnight. The seed creates Tuesdays in `[today, today + 6 calendar months)` and preserves matching categories, slots, and closures when rerun. No sample employees or presentations are seeded. Files are metadata only; private buckets, upload validation, signed URLs, and cleanup remain Phase 6.
+A partial unique index prevents duplicate active bookings while cancellation/soft deletion releases the slot. Completion uses the following **America/Vancouver** midnight. The seed creates Tuesdays in `[today, today + 6 calendar months)` and preserves matching categories, slots, and closures when rerun. No sample employees or presentations are seeded.
+
+File binaries live in the private `presentation-slides` Storage bucket. Uploads validate extension, MIME, size, and content before attachment. The 50 MB default is configured on the bucket; application forms and server validation read that limit. PPTX inspection uses a small ZIP reader (`yauzl`) with bounded XML decompression. PDF validation checks its signature and EOF marker. No automatic conversion occurs. Superseded and abandoned objects stay inaccessible and retained pending a future retention policy; rejected content is removed best-effort. See [file lifecycle and configuration](./docs/phase-6.md).
 
 ```text
 src/
   app/
     (auth)/                Login, password, confirmation UI, Auth Server Actions
     auth/callback/         PKCE callback handler
+    api/presentations/     File upload preparation/completion and private streaming
     (workspace)/           Protected Home, schedule, registration/editing, archive, and details
     layout.tsx             Shared header, footer, metadata, main landmark
     globals.css            Tailwind theme and visual tokens
   components/
     archive/               Search filters, archive cards, file-availability indicators
     auth/                  Accessible authentication forms
+    files/                 Slide management, progress, download links, PDF preview
     layout/                Header, navigation, footer, placeholder layout
     schedule/              Slot cards, shared metadata fields, registration and editing forms
     ui/                    Buttons, icons, headings, empty states
   lib/
     archive/               Validated archive queries and protected detail reads
     auth/                  Verified sessions, route guards, input/redirect validation
+    files/                 File configuration, validation, metadata reads, API guards
     supabase/              Server client and validated environment configuration
     schedule/              Calendar dates, authorized reads, registration/edit validation
     config.ts              Application name and confirmed constants
@@ -150,7 +164,7 @@ tests/
   e2e/                     Browser, real local Auth/API, and accessibility tests
 ```
 
-Run `npm run db:types` against the running local database after a schema change, then format the generated file. The three active environment variables are `APP_URL`, `NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Timezone is fixed in application constants and SQL. No storage or privileged-key environment variables are needed in this phase. Never commit `.env.local`.
+Run `npm run db:types` against the running local database after a schema change, then format the generated file. Environment variables are `APP_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, and the server-only `SUPABASE_SERVICE_ROLE_KEY`. Timezone is fixed in application constants and SQL. Never commit `.env.local`.
 
 ## Checks
 
@@ -161,7 +175,7 @@ npx playwright install chromium
 npm run test:ui
 ```
 
-`check` runs lint, route-aware TypeScript checking, unit tests, PostgreSQL schema/RLS tests, and a production build. Unit and database tests do not require Docker. Browser tests require this project's running **local** Supabase stack, `.env.local` pointing to it, and a fresh production build. They start the application on port 3100, create temporary `.test` accounts, exercise real local Auth/PostgREST/Mailpit services, and remove their own records. No real employee mail is sent. Tests refuse non-local database targets.
+`check` runs lint, route-aware TypeScript checking, unit tests, PostgreSQL schema/RLS tests, and a production build. Unit and database tests do not require Docker. Browser tests require this project's running **local** Supabase stack, `.env.local` pointing to it (including its service-role key), and a fresh production build. They start the application on port 3100, create temporary `.test` accounts, exercise real local Auth/PostgREST/Mailpit/Storage services, and remove their own records and file objects. No real employee mail is sent. Tests refuse non-local database targets.
 
 If Google Chrome is installed, use `PLAYWRIGHT_CHANNEL=chrome npm run test:ui` instead of downloading Chromium. UI checks run at desktop, tablet, and mobile widths. The shared authorization and concurrent-mutation integration scenarios run once on desktop. Booking tests use separate database connections and deliberately held row locks to verify competing bookings and moves, edit/cancel conflicts, simultaneous closures, and access revocation during a wait. Screenshots/traces are ignored local test artifacts and can contain test credentials; do not publish them. Automated accessibility checks supplement manual review.
 
@@ -175,7 +189,7 @@ npm start
 ## Remaining work
 
 - Hosted Supabase/Vercel configuration, SMTP delivery, actual employee invitations, and initial administrator provisioning require the real project and domain.
-- Phases 6–7 remain unimplemented: file upload/replacement/preview/download and administrative workflows. The complete Success Criteria status is in [docs/phase-5.md](./docs/phase-5.md).
+- Phase 7 administrative workflows remain unimplemented. Phase 8 remains the final cross-application refinement/review phase. The complete Success Criteria status is in [docs/phase-6.md](./docs/phase-6.md).
 - The Phase 1 tooling limitation remains: Next.js's React lint plugins require the pinned ESLint 9 version. The dependency audit reports an upstream development-only `braces` advisory through that lint configuration; production dependencies are audited separately with `npm audit --omit=dev`. Avoid a forced tooling downgrade.
 
 Auth integration follows the official [Supabase SSR guide](https://supabase.com/docs/guides/auth/server-side/creating-a-client) and [Next.js authentication guide](https://nextjs.org/docs/app/guides/authentication).
