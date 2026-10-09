@@ -31,10 +31,17 @@ export default async function SchedulePage({
         title="Presentation schedule"
         description="See what’s coming up and find a moment to share something with the team."
       >
-        <span className="inline-flex shrink-0 items-center gap-2 text-sm text-muted">
-          <Icon name="clock" className="size-4" />
-          Vancouver time
-        </span>
+        <div className="flex flex-wrap items-center gap-4">
+          {schedule.isAdmin && (
+            <ButtonLink href="/schedule/manage" variant="secondary">
+              Manage schedule
+            </ButtonLink>
+          )}
+          <span className="inline-flex shrink-0 items-center gap-2 text-sm text-muted">
+            <Icon name="clock" className="size-4" />
+            Vancouver time
+          </span>
+        </div>
       </PageHeader>
       {schedule.confirmation && (
         <div

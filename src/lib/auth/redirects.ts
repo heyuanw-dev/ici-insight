@@ -15,6 +15,7 @@ export function safeReturnPath(value: unknown): Route {
       [
         "/",
         "/schedule",
+        "/schedule/manage",
         "/archive",
         "/account/password",
         "/presentations/new",

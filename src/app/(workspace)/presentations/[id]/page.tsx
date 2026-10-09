@@ -35,6 +35,19 @@ export default async function PresentationPage({
           {backToArchive ? "Back to archive" : "Back to schedule"}
         </ButtonLink>
       </div>
+      {canEdit &&
+        (query.notice === "updated" ||
+          (query.notice === "cancelled" &&
+            presentation.status === "cancelled")) && (
+          <p
+            role="status"
+            className="mb-6 rounded-xl border border-brand/25 bg-brand-soft p-5 text-sm"
+          >
+            {query.notice === "cancelled"
+              ? "Presentation cancelled. Its record and files have been retained."
+              : "Presentation updated."}
+          </p>
+        )}
       <header className="mb-8">
         <p className="eyebrow mb-3">{statusLabel} presentation</p>
         <h1 className="wrap-anywhere text-3xl leading-tight font-semibold tracking-tight sm:text-4xl">

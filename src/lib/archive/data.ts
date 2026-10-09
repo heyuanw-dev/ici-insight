@@ -128,7 +128,7 @@ export async function getPresentationDetails(id: string) {
   if (!data) notFound();
   return {
     presentation: presentationFrom(data),
-    canEdit: permissions.can_edit_metadata && data.status === "upcoming",
+    canEdit: permissions.can_edit_metadata,
     canManageFiles: permissions.can_manage_files,
   };
 }

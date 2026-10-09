@@ -131,7 +131,14 @@ export async function getSchedule(
     slots.push(...data.map(slotFrom));
     if (data.length < 1000) break;
   }
-  return { ...window, today, slots, confirmation, employeeId: employee.id };
+  return {
+    ...window,
+    today,
+    slots,
+    confirmation,
+    employeeId: employee.id,
+    isAdmin: employee.role === "admin",
+  };
 }
 
 export async function getHomeSchedule() {

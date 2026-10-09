@@ -84,14 +84,18 @@ export async function waitForBookings(
   operation:
     | "register_presentation"
     | "update_presentation"
-    | "cancel_presentation" = "register_presentation",
+    | "cancel_presentation"
+    | "admin_set_date_closed"
+    | "admin_update_slot"
+    | "admin_remove_presentation"
+    | "admin_update_presentation" = "register_presentation",
 ) {
   await expect
     .poll(
       () =>
         Number(
           localSql(
-            `select count(*) from pg_stat_activity where pid <> pg_backend_pid() and wait_event_type='Lock' and query ilike '%${operation}%';`,
+            `select count(*) from pg_stat_activity where pid <> pg_backend_pid() and wait_event_type='Lock' and query ~ '\\m${operation}\\M';`,
           ),
         ),
       { timeout: 10000 },

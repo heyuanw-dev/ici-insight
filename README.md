@@ -1,6 +1,6 @@
 # ICI AI Insight Hub
 
-Internal weekly AI presentation workspace for ICI Lab. [REQUIREMENTS.md](./REQUIREMENTS.md) is the source of truth. Phases 1–6 are implemented.
+Internal weekly AI presentation workspace for ICI Lab. [REQUIREMENTS.md](./REQUIREMENTS.md) is the source of truth. Phases 1–7 are implemented.
 
 ## Current scope
 
@@ -16,7 +16,9 @@ Internal weekly AI presentation workspace for ICI Lab. [REQUIREMENTS.md](./REQUI
 
 - Private PowerPoint/PDF upload and replacement, including after completion, authenticated PowerPoint download, and browser PDF preview. Presenters manage their own slides; administrators manage any visible presentation's slides. Replacements preserve current files until validation and an atomic save succeed.
 
-Administrative historical corrections, schedule management, and soft deletion remain Phase 7. Business changes use restricted database functions; direct table writes remain denied to employees, including application administrators. See [Phase 6 implementation and Success Criteria](./docs/phase-6.md).
+- Administrator schedule extension, additional same-day slots, slot/date closures, historical metadata/presenter/date corrections, and confirmed cancellation or soft deletion. Closures never silently change bookings; deletion retains all records and files.
+
+Business changes use restricted database functions; direct table writes remain denied to employees, including application administrators. See [Phase 7 implementation and Success Criteria](./docs/phase-7.md).
 
 ## Run locally
 
@@ -85,27 +87,28 @@ File orchestration additionally uses a server-only service-role client after emp
 
 The database independently resolves an active, confirmed, unbanned employee from `auth.uid()`. Completed password setup is required for domain reads. Anonymous and unlinked identities cannot read internal data. Employees can read their own access-status profile before password setup; active employees can read the internal directory and visible domain records. Soft-deleted presentations and their file metadata are hidden, including through the security-invoker overview view.
 
-`presentation_permissions` is a read-only RPC used by server route guards. Owners may edit metadata through the scheduled Vancouver date; completed metadata requires an administrator. File-management permission remains available to owners after completion. Administrators may manage any visible presentation. The upcoming workflow uses `register_presentation`, `update_presentation`, and `cancel_presentation` RPCs. File preparation uses `prepare_file_upload`; only the server can call `complete_file_upload` after content validation. Historical administrative metadata mutations remain Phase 7. Direct updates to roles, active state, password-setup flags, or business records remain denied to both application roles.
+`presentation_permissions` is a read-only RPC used by server route guards. Owners may edit metadata through the scheduled Vancouver date; completed metadata requires an administrator. File-management permission remains available to owners after completion. Administrators may manage any visible presentation. The upcoming workflow uses `register_presentation`, `update_presentation`, and `cancel_presentation` RPCs. File preparation uses `prepare_file_upload`; only the server can call `complete_file_upload` after content validation. Administrative schedule and historical mutations use separate `admin_*` RPCs that independently require a current administrator role. Schedule writes serialize before row locks, and role/access checks run again after lock waits. Slot and presentation revisions reject stale changes. Direct updates to roles, active state, password-setup flags, or business records remain denied to both application roles.
 
 Sign-out clears this browser's credentials and revokes its refresh token. A password update requests global refresh-token revocation and requires another sign-in. Supabase access tokens already issued to other clients can remain valid until expiry; account deactivation/ban is checked independently on protected reads. If Auth is unavailable during sign-out, the browser cookies are still removed, but server-side revocation cannot be guaranteed.
 
 ## Routes
 
-| Route                                              | Current behavior                                                                     |
-| -------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `/login`                                           | Public invited-account sign-in; `?mode=recovery` displays password recovery          |
-| `/auth/confirm`                                    | Public confirmation screen for invitation/recovery links; token consumed on POST     |
-| `/auth/callback`                                   | Public PKCE session exchange; validates account and safe return destination          |
-| `/account/password`                                | Verified active account required; supports initial setup and password changes        |
-| `/`                                                | Live next presentation, upcoming topics, and next available slots                    |
-| `/schedule`                                        | Available, booked, and closed slots; 12-week navigation                              |
-| `/archive`                                         | Completed presentations; search, filters, and pagination                             |
-| `/presentations/new`                               | Slot selection guidance; `?slot=UUID` opens registration                             |
-| `/presentations/[id]`                              | Protected details, PowerPoint download, PDF preview, and authorized slide management |
-| `/presentations/[id]/edit`                         | Owner/date/admin authorization; upcoming edits, rescheduling, and cancellation       |
-| `/api/presentations/[id]/files/uploads`            | POST: authorize and prepare an upload-only Storage URL                               |
-| `/api/presentations/[id]/files/uploads/[uploadId]` | POST: validate stored bytes and publish atomically                                   |
-| `/api/presentations/[id]/files/[kind]`             | GET/HEAD: authenticated PowerPoint attachment or inline PDF, including byte ranges   |
+| Route                                              | Current behavior                                                                                                    |
+| -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `/login`                                           | Public invited-account sign-in; `?mode=recovery` displays password recovery                                         |
+| `/auth/confirm`                                    | Public confirmation screen for invitation/recovery links; token consumed on POST                                    |
+| `/auth/callback`                                   | Public PKCE session exchange; validates account and safe return destination                                         |
+| `/account/password`                                | Verified active account required; supports initial setup and password changes                                       |
+| `/`                                                | Live next presentation, upcoming topics, and next available slots                                                   |
+| `/schedule`                                        | Available, booked, and closed slots; 12-week navigation                                                             |
+| `/schedule/manage`                                 | Admin-only schedule extension, slot/date management, holiday closures, and retained cancellations                   |
+| `/archive`                                         | Completed presentations; search, filters, and pagination                                                            |
+| `/presentations/new`                               | Slot selection guidance; `?slot=UUID` opens registration                                                            |
+| `/presentations/[id]`                              | Protected details, PowerPoint download, PDF preview, and authorized slide management                                |
+| `/presentations/[id]/edit`                         | Owner/date authorization for regular edits; admin historical/presenter corrections, cancellation, and soft deletion |
+| `/api/presentations/[id]/files/uploads`            | POST: authorize and prepare an upload-only Storage URL                                                              |
+| `/api/presentations/[id]/files/uploads/[uploadId]` | POST: validate stored bytes and publish atomically                                                                  |
+| `/api/presentations/[id]/files/[kind]`             | GET/HEAD: authenticated PowerPoint attachment or inline PDF, including byte ranges                                  |
 
 The confirmation/callback endpoints only establish authentication; they expose no internal content. Invalid, missing, unauthorized, and soft-deleted presentation IDs share the same not-found screen.
 
@@ -115,7 +118,8 @@ The confirmation/callback endpoints only establish authentication; they expose n
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `users`                     | Stable employee identity, optional Auth link, name/email, protected role/active state, password setup state           |
 | `categories`                | Category names, ordering, active state                                                                                |
-| `presentation_slots`        | Date, slot number, open/closed state; multiple slots per day                                                          |
+| `presentation_slots`        | Date, slot number, open/closed state, revision; multiple slots per day                                                |
+| `schedule_date_closures`    | Persistent date-level closures, including dates without slots                                                         |
 | `presentations`             | One presenter/slot, required title, optional category/description/reference URL, cancellation/soft deletion, revision |
 | `presentation_files`        | One current PPTX/PDF reference per presentation; file metadata only                                                   |
 | `presentation_file_uploads` | Private upload intents, expected current file IDs, expiry, and publication/failure state                              |
@@ -125,6 +129,8 @@ The confirmation/callback endpoints only establish authentication; they expose n
 The archive derives completion from Vancouver midnight on each database read. `archive_presentations` is a security-invoker view of completed metadata; `search_archive` and `archive_filter_options` are read-only functions that preserve employee RLS. Search matches all entered words as case-insensitive literal substrings across title, presenter, description, and category. Filters combine, date bounds are inclusive, and pages contain up to 12 results. Search state stays in the URL for reloads, history, and detail-page return links. No search service, status job, or manual archive action is needed.
 
 A partial unique index prevents duplicate active bookings while cancellation/soft deletion releases the slot. Completion uses the following **America/Vancouver** midnight. The seed creates Tuesdays in `[today, today + 6 calendar months)` and preserves matching categories, slots, and closures when rerun. No sample employees or presentations are seeded.
+
+Admins manage the schedule from **Schedule → Manage schedule**. Extensions add Tuesday slots only on dates with no slots and preserve all existing bookings and closures. A date closure also covers slots created afterward; reopening that date preserves individual slot closures. Booked slots/dates must have their presentations explicitly moved or cancelled before closure. A slot with any presentation history keeps its date/number; reschedule the presentation from its editor. Admin soft deletion hides the record and file access without deleting stored data. See [Phase 7 behavior and migration](./docs/phase-7.md).
 
 File binaries live in the private `presentation-slides` Storage bucket. Uploads validate extension, MIME, size, and content before attachment. The 50 MB default is configured on the bucket; application forms and server validation read that limit. PPTX inspection uses a small ZIP reader (`yauzl`) with bounded XML decompression. PDF validation checks its signature and EOF marker. No automatic conversion occurs. Superseded and abandoned objects stay inaccessible and retained pending a future retention policy; rejected content is removed best-effort. See [file lifecycle and configuration](./docs/phase-6.md).
 
@@ -138,6 +144,7 @@ src/
     layout.tsx             Shared header, footer, metadata, main landmark
     globals.css            Tailwind theme and visual tokens
   components/
+    admin/                 Schedule administration and historical presentation editor
     archive/               Search filters, archive cards, file-availability indicators
     auth/                  Accessible authentication forms
     files/                 Slide management, progress, download links, PDF preview
@@ -145,6 +152,7 @@ src/
     schedule/              Slot cards, shared metadata fields, registration and editing forms
     ui/                    Buttons, icons, headings, empty states
   lib/
+    admin/                 Protected administrative reads and mutation validation
     archive/               Validated archive queries and protected detail reads
     auth/                  Verified sessions, route guards, input/redirect validation
     files/                 File configuration, validation, metadata reads, API guards
@@ -154,7 +162,7 @@ src/
   proxy.ts                 Session refresh, initial route guard, cache headers
   types/                   Generated database types and domain vocabulary
 supabase/
-  migrations/              Foundation, authorization, booking/edit/cancel SQL, and read-only archive queries
+  migrations/              Foundation, authorization, scheduling, archive, private files, and administrative mutations
   templates/               Invitation and recovery email templates
   config.toml              Local service/Auth configuration
   seed.sql                 Categories and initial weekly slots
@@ -189,7 +197,7 @@ npm start
 ## Remaining work
 
 - Hosted Supabase/Vercel configuration, SMTP delivery, actual employee invitations, and initial administrator provisioning require the real project and domain.
-- Phase 7 administrative workflows remain unimplemented. Phase 8 remains the final cross-application refinement/review phase. The complete Success Criteria status is in [docs/phase-6.md](./docs/phase-6.md).
+- Phase 8 remains the final cross-application refinement/review phase, including hosted performance and physical-device validation. No Phase 7 requirement is intentionally deferred. The complete Success Criteria status is in [docs/phase-7.md](./docs/phase-7.md).
 - The Phase 1 tooling limitation remains: Next.js's React lint plugins require the pinned ESLint 9 version. The dependency audit reports an upstream development-only `braces` advisory through that lint configuration; production dependencies are audited separately with `npm audit --omit=dev`. Avoid a forced tooling downgrade.
 
 Auth integration follows the official [Supabase SSR guide](https://supabase.com/docs/guides/auth/server-side/creating-a-client) and [Next.js authentication guide](https://nextjs.org/docs/app/guides/authentication).

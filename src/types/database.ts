@@ -201,6 +201,7 @@ export type Database = {
           id: string;
           is_open: boolean;
           presentation_date: string;
+          revision: number;
           slot_number: number;
           updated_at: string;
         };
@@ -209,6 +210,7 @@ export type Database = {
           id?: string;
           is_open?: boolean;
           presentation_date: string;
+          revision?: number;
           slot_number?: number;
           updated_at?: string;
         };
@@ -217,6 +219,7 @@ export type Database = {
           id?: string;
           is_open?: boolean;
           presentation_date?: string;
+          revision?: number;
           slot_number?: number;
           updated_at?: string;
         };
@@ -295,6 +298,21 @@ export type Database = {
             referencedColumns: ["slot_id"];
           },
         ];
+      };
+      schedule_date_closures: {
+        Row: {
+          created_at: string;
+          presentation_date: string;
+        };
+        Insert: {
+          created_at?: string;
+          presentation_date: string;
+        };
+        Update: {
+          created_at?: string;
+          presentation_date?: string;
+        };
+        Relationships: [];
       };
       users: {
         Row: {
@@ -468,6 +486,50 @@ export type Database = {
       };
     };
     Functions: {
+      admin_create_slot: {
+        Args: { p_date: string; p_number?: number };
+        Returns: string;
+      };
+      admin_extend_schedule: {
+        Args: { p_end: string; p_start: string };
+        Returns: number;
+      };
+      admin_remove_presentation: {
+        Args: {
+          p_confirm?: boolean;
+          p_id: string;
+          p_operation: string;
+          p_revision: number;
+        };
+        Returns: string;
+      };
+      admin_set_date_closed: {
+        Args: { p_closed: boolean; p_date: string; p_expected_closed: boolean };
+        Returns: string;
+      };
+      admin_update_presentation: {
+        Args: {
+          p_category_id?: string;
+          p_description?: string;
+          p_id: string;
+          p_presenter_id: string;
+          p_reference_url?: string;
+          p_revision: number;
+          p_slot_id: string;
+          p_title: string;
+        };
+        Returns: string;
+      };
+      admin_update_slot: {
+        Args: {
+          p_date: string;
+          p_id: string;
+          p_number: number;
+          p_open: boolean;
+          p_revision: number;
+        };
+        Returns: string;
+      };
       archive_filter_options: {
         Args: Record<PropertyKey, never>;
         Returns: {

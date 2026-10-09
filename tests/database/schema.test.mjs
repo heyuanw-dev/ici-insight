@@ -352,6 +352,7 @@ test("anonymous and unlinked authenticated identities cannot read internal recor
     "users",
     "categories",
     "presentation_slots",
+    "schedule_date_closures",
     "presentations",
     "presentation_files",
     "presentation_overview",
@@ -359,7 +360,7 @@ test("anonymous and unlinked authenticated identities cannot read internal recor
   const { rows } = await db.query(
     "select relrowsecurity from pg_class where relnamespace = 'public'::regnamespace and relkind = 'r'",
   );
-  assert.equal(rows.length, 6);
+  assert.equal(rows.length, 7);
   assert.ok(rows.every((row) => row.relrowsecurity));
   for (const role of ["anon", "authenticated"]) {
     await db.exec(`set role ${role}`);

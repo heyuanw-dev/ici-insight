@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import { requireEmployee } from "@/lib/auth/session";
+import { getAdminPresentation } from "@/lib/admin/data";
+import { AdminPresentationForm } from "@/components/admin/presentation-form";
 import { PageHeader } from "@/components/ui/page-header";
 import { ButtonLink } from "@/components/ui/button-link";
 import { EditPresentationForm } from "@/components/schedule/edit-presentation-form";
@@ -12,6 +15,39 @@ export default async function EditPresentationPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const employee = await requireEmployee();
+  if (employee.role === "admin") {
+    const data = await getAdminPresentation(id);
+    const p = data.presentation;
+    return (
+      <div className="mx-auto max-w-3xl">
+        <PageHeader
+          eyebrow="Administration"
+          title="Edit presentation"
+          description="Correct presentation details, including historical dates and presenters, or cancel or delete this record."
+        />
+        <AdminPresentationForm
+          key={`${p.id}-${p.revision}`}
+          id={p.id}
+          revision={p.revision}
+          presenterId={p.presenter_user_id}
+          cancelled={Boolean(p.cancelled_at)}
+          presenters={data.presenters}
+          categories={data.categories}
+          slots={data.available}
+          initial={{
+            slotId: p.slot_id,
+            values: {
+              title: p.title,
+              description: p.description ?? "",
+              categoryId: p.category_id ?? "",
+              referenceUrl: p.reference_url ?? "",
+            },
+          }}
+        />
+      </div>
+    );
+  }
   const data = await getEditPresentation(id);
   const presentation = data.presentation;
   return (
