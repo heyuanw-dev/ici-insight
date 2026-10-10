@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   fileTypes,
@@ -11,12 +11,17 @@ import {
 } from "@/lib/files/config";
 
 async function post(url: string, input?: unknown) {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: input ? JSON.stringify(input) : undefined,
-  });
-  const parsed: unknown = await response.json();
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: input ? JSON.stringify(input) : undefined,
+    });
+  } catch {
+    throw new Error("The upload connection was interrupted. Please retry.");
+  }
+  const parsed: unknown = await response.json().catch(() => null);
   if (!parsed || typeof parsed !== "object")
     throw new Error("Unexpected file response. Please reload and retry.");
   const result = parsed as Record<string, unknown>;
@@ -79,6 +84,10 @@ export function FileManager({
     text: string;
     error: boolean;
   } | null>(null);
+  const feedback = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (message?.error) feedback.current?.focus();
+  }, [message]);
   async function submit(event: FormEvent<HTMLFormElement>, kind: FileKind) {
     event.preventDefault();
     if (pending) return;
@@ -182,8 +191,9 @@ export function FileManager({
                   type="file"
                   required
                   accept={`${fileTypes[kind].extension},${fileTypes[kind].mime}`}
-                  aria-describedby={`upload-${kind}-hint`}
-                  className="block min-h-11 w-full min-w-0 rounded-lg border border-line bg-surface p-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-canvas file:px-3 file:py-2 file:font-medium"
+                  aria-invalid={message?.kind === kind && message.error}
+                  aria-describedby={`upload-${kind}-hint${message?.kind === kind && message.error ? ` upload-${kind}-error` : ""}`}
+                  className="block min-h-11 w-full min-w-0 rounded-lg border border-control bg-surface p-2 text-sm file:mr-3 file:rounded file:border-0 file:bg-canvas file:px-3 file:py-2 file:font-medium"
                 />
                 <p
                   id={`upload-${kind}-hint`}
@@ -218,6 +228,9 @@ export function FileManager({
               )}
               {message?.kind === kind && (
                 <p
+                  ref={feedback}
+                  id={`upload-${kind}-error`}
+                  tabIndex={-1}
                   role={message.error ? "alert" : "status"}
                   className={`mt-4 text-sm leading-7 ${message.error ? "text-brand" : "text-ink"}`}
                 >

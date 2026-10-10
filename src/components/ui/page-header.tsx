@@ -14,7 +14,7 @@ export function PageHeader({
   children,
 }: PageHeaderProps) {
   return (
-    <div className="mb-10 flex flex-col justify-between gap-6 sm:flex-row sm:items-end">
+    <div className="mb-10 flex flex-col flex-wrap justify-between gap-6 sm:flex-row sm:items-end">
       <div>
         <p className="eyebrow mb-3">{eyebrow}</p>
         <h1 className="text-3xl font-semibold tracking-tight text-ink sm:text-4xl">

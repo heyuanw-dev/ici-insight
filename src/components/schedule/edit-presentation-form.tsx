@@ -2,6 +2,7 @@
 
 import { useActionState, useRef, useState } from "react";
 import Link from "next/link";
+import { useFormFeedback } from "@/components/ui/use-form-feedback";
 import {
   cancelPresentation,
   savePresentation,
@@ -37,10 +38,19 @@ export function EditPresentationForm({
   const cancellationToggle = useRef<HTMLButtonElement>(null);
   const [slotId, setSlotId] = useState(initial.slotId);
   const pending = saving || cancelling;
+  const form = useFormFeedback(
+    state,
+    !pending && Boolean(state.message || state.errors),
+  );
+  const cancellationForm = useFormFeedback(
+    cancellation,
+    !pending && Boolean(cancellation.message),
+  );
   const currentLabel = `${formatPresentationDate(currentSlot.date)} · Slot ${currentSlot.number}`;
   return (
     <div className="space-y-6">
       <form
+        ref={form}
         action={save}
         // Server Actions return field errors as state. Keep the entire draft;
         // successful saves navigate away instead of resetting this form.
@@ -50,6 +60,8 @@ export function EditPresentationForm({
       >
         {(state.message || state.errors) && (
           <div
+            data-form-feedback
+            tabIndex={-1}
             role="alert"
             className="rounded-lg border border-brand/30 bg-brand-soft p-4 text-sm leading-6 text-brand"
           >
@@ -108,7 +120,7 @@ export function EditPresentationForm({
             )}
           </div>
           <PresentationFields state={state} categories={categories} />
-          <div className="flex flex-col gap-3 border-t border-line pt-6 sm:flex-row sm:items-center sm:gap-6">
+          <div className="flex flex-col flex-wrap gap-3 border-t border-line pt-6 sm:flex-row sm:items-center sm:gap-6">
             <button
               type="submit"
               aria-busy={saving}
@@ -150,13 +162,26 @@ export function EditPresentationForm({
         </button>
         {confirming && (
           <form
+            ref={cancellationForm}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && !pending) {
+                event.preventDefault();
+                setConfirming(false);
+                cancellationToggle.current?.focus();
+              }
+            }}
             id="cancellation-confirmation"
             action={cancel}
             className="mt-5 space-y-4"
             aria-label="Confirm cancellation"
           >
             {cancellation.message && (
-              <p role="alert" className="text-sm leading-6 text-brand">
+              <p
+                role="alert"
+                data-form-feedback
+                tabIndex={-1}
+                className="text-sm leading-6 text-brand"
+              >
                 {cancellation.message}{" "}
                 <a
                   href={`/presentations/${id}/edit`}
@@ -186,7 +211,7 @@ export function EditPresentationForm({
                 />
                 I confirm that I want to cancel this presentation.
               </label>
-              <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex flex-col flex-wrap gap-3 sm:flex-row">
                 <button
                   type="submit"
                   aria-busy={cancelling}

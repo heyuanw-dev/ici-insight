@@ -1,6 +1,6 @@
 # ICI AI Insight Hub
 
-Internal weekly AI presentation workspace for ICI Lab. [REQUIREMENTS.md](./REQUIREMENTS.md) is the source of truth. Phases 1–7 are implemented.
+Internal weekly AI presentation workspace for ICI Lab. [REQUIREMENTS.md](./REQUIREMENTS.md) is the source of truth. Phases 1–8 are implemented locally; deployment acceptance checks are listed in the Phase 8 audit.
 
 ## Current scope
 
@@ -18,7 +18,9 @@ Internal weekly AI presentation workspace for ICI Lab. [REQUIREMENTS.md](./REQUI
 
 - Administrator schedule extension, additional same-day slots, slot/date closures, historical metadata/presenter/date corrections, and confirmed cancellation or soft deletion. Closures never silently change bookings; deletion retains all records and files.
 
-Business changes use restricted database functions; direct table writes remain denied to employees, including application administrators. See [Phase 7 implementation and Success Criteria](./docs/phase-7.md).
+- Per-request browser security policies, bounded upload metadata, accessible validation focus and retry feedback, narrow-screen reflow, and regression/security checks.
+
+Business changes use restricted database functions; direct table writes remain denied to employees, including application administrators. See [Phase 8 verification and Success Criteria](./docs/phase-8.md).
 
 ## Run locally
 
@@ -81,7 +83,7 @@ No hosted project has been configured or deployed. Before using a hosted environ
 
 ## Authentication and authorization
 
-Authentication and metadata calls run on the server using the publishable key and the employee's session. There is no browser Auth client or local-storage session token. Session cookies are `HttpOnly`, `SameSite=Lax`, and `Secure` on HTTPS. The Next.js proxy refreshes and verifies tokens, while server guards use `getUser()` and the current application profile to verify employee membership and role. Private responses use `Cache-Control: private, no-store`. Return destinations are restricted to known internal routes. Credential mutations use POST Server Actions and Next.js origin checks.
+Authentication and metadata calls run on the server using the publishable key and the employee's session. There is no browser Auth client or local-storage session token. Session cookies are `HttpOnly`, `SameSite=Lax`, and `Secure` on HTTPS. The Next.js proxy refreshes and verifies tokens, while server guards use `getUser()` and the current application profile to verify employee membership and role. Private responses use `Cache-Control: private, no-store`. Return destinations are restricted to known internal routes. Credential mutations use POST Server Actions and Next.js origin checks. Pages receive per-request CSP nonces and deny embedding; common responses disable MIME sniffing and referrer disclosure. HTTPS deployments receive HSTS. Native PDF responses retain their own same-origin framing policy.
 
 File orchestration additionally uses a server-only service-role client after employee/permission checks. The browser receives an upload-only token for one immutable object; it never receives a privileged key or a signed read URL. Upload routes enforce the configured `APP_URL` origin. Downloads and PDF byte-range requests pass through authenticated application endpoints, rechecking active membership and non-deleted presentation visibility each time. No client Storage policies are granted. Publication rechecks the uploader's account and ownership/admin role in SQL.
 
@@ -156,10 +158,11 @@ src/
     archive/               Validated archive queries and protected detail reads
     auth/                  Verified sessions, route guards, input/redirect validation
     files/                 File configuration, validation, metadata reads, API guards
+    security/              Browser policy and bounded request parsing
     supabase/              Server client and validated environment configuration
     schedule/              Calendar dates, authorized reads, registration/edit validation
     config.ts              Application name and confirmed constants
-  proxy.ts                 Session refresh, initial route guard, cache headers
+  proxy.ts                 Session refresh, route guard, CSP nonces and cache headers
   types/                   Generated database types and domain vocabulary
 supabase/
   migrations/              Foundation, authorization, scheduling, archive, private files, and administrative mutations
@@ -183,9 +186,9 @@ npx playwright install chromium
 npm run test:ui
 ```
 
-`check` runs lint, route-aware TypeScript checking, unit tests, PostgreSQL schema/RLS tests, and a production build. Unit and database tests do not require Docker. Browser tests require this project's running **local** Supabase stack, `.env.local` pointing to it (including its service-role key), and a fresh production build. They start the application on port 3100, create temporary `.test` accounts, exercise real local Auth/PostgREST/Mailpit/Storage services, and remove their own records and file objects. No real employee mail is sent. Tests refuse non-local database targets.
+`check` runs lint, route-aware TypeScript checking, unit tests, PostgreSQL schema/RLS tests, a production build, and the source/browser-asset credential leakage check (`test:security`). Unit and database tests do not require Docker. Browser tests require this project's running **local** Supabase stack, `.env.local` pointing to it (including its service-role key), and a fresh production build. They start the application on port 3100, create temporary `.test` accounts, exercise real local Auth/PostgREST/Mailpit/Storage services, and remove their own records and file objects. No real employee mail is sent. Tests refuse non-local database targets.
 
-If Google Chrome is installed, use `PLAYWRIGHT_CHANNEL=chrome npm run test:ui` instead of downloading Chromium. UI checks run at desktop, tablet, and mobile widths. The shared authorization and concurrent-mutation integration scenarios run once on desktop. Booking tests use separate database connections and deliberately held row locks to verify competing bookings and moves, edit/cancel conflicts, simultaneous closures, and access revocation during a wait. Screenshots/traces are ignored local test artifacts and can contain test credentials; do not publish them. Automated accessibility checks supplement manual review.
+If Google Chrome is installed, use `PLAYWRIGHT_CHANNEL=chrome npm run test:ui` instead of downloading Chromium. UI checks run at desktop, tablet, and mobile widths, with additional 320-pixel and 200% text reflow checks, keyboard/error recovery tests, and enforced CSP/origin checks. The shared authorization and concurrent-mutation integration scenarios run once on desktop. Booking tests use separate database connections and deliberately held row locks to verify competing bookings and moves, edit/cancel conflicts, simultaneous closures, and access revocation during a wait. Screenshots/traces are ignored local test artifacts and can contain test credentials; do not publish them. Automated accessibility checks supplement manual review.
 
 For a production-style local run:
 
@@ -197,7 +200,7 @@ npm start
 ## Remaining work
 
 - Hosted Supabase/Vercel configuration, SMTP delivery, actual employee invitations, and initial administrator provisioning require the real project and domain.
-- Phase 8 remains the final cross-application refinement/review phase, including hosted performance and physical-device validation. No Phase 7 requirement is intentionally deferred. The complete Success Criteria status is in [docs/phase-7.md](./docs/phase-7.md).
+- No MVP feature is intentionally deferred. Hosted performance, maximum-size transfers, physical-device behavior, and screen-reader acceptance remain unverified. The complete Success Criteria audit and verification limits are in [docs/phase-8.md](./docs/phase-8.md).
 - The Phase 1 tooling limitation remains: Next.js's React lint plugins require the pinned ESLint 9 version. The dependency audit reports an upstream development-only `braces` advisory through that lint configuration; production dependencies are audited separately with `npm audit --omit=dev`. Avoid a forced tooling downgrade.
 
 Auth integration follows the official [Supabase SSR guide](https://supabase.com/docs/guides/auth/server-side/creating-a-client) and [Next.js authentication guide](https://nextjs.org/docs/app/guides/authentication).

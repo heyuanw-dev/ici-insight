@@ -1,5 +1,6 @@
 import { createStorageAdminClient } from "@/lib/supabase/storage-admin";
 import { isUuid } from "@/lib/auth/redirects";
+import { readSmallJson } from "@/lib/security/request-body";
 import {
   fileTypes,
   isFileKind,
@@ -24,15 +25,7 @@ export async function POST(
     checkFileOrigin(request);
     const { id } = await context.params;
     const { client } = await fileRequestEmployee(id, true);
-    const body = await request.text();
-    if (body.length > 4096)
-      throw new FileRequestError("The file request is too large.", 413);
-    let input: unknown;
-    try {
-      input = JSON.parse(body);
-    } catch {
-      throw new FileRequestError("Invalid file request.");
-    }
+    const input = await readSmallJson(request);
     if (
       !input ||
       typeof input !== "object" ||

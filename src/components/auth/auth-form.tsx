@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
+import { useFormFeedback } from "@/components/ui/use-form-feedback";
 import {
   confirmEmail,
   requestPasswordReset,
@@ -60,7 +61,7 @@ function Field({
         defaultValue={defaultValue}
         aria-invalid={Boolean(error)}
         aria-describedby={error ? `${name}-error` : undefined}
-        className="min-h-11 w-full rounded-lg border border-line bg-surface px-3 py-2.5 text-base text-ink placeholder:text-muted aria-invalid:border-brand disabled:opacity-60"
+        className="min-h-11 w-full min-w-0 rounded-lg border border-control bg-surface px-3 py-2.5 text-base text-ink placeholder:text-muted aria-invalid:border-brand disabled:opacity-60"
       />
       {error && (
         <p id={`${name}-error`} className="mt-2 text-sm text-brand">
@@ -86,10 +87,16 @@ export function AuthForm({
     actions[mode],
     initialAuthFormState,
   );
+  const form = useFormFeedback(
+    state,
+    !pending && Boolean(state.message || state.errors),
+  );
   return (
-    <form action={action} className="space-y-5">
+    <form ref={form} action={action} className="space-y-5">
       {state.message && (
         <p
+          data-form-feedback
+          tabIndex={-1}
           role={state.status === "error" ? "alert" : "status"}
           className={`rounded-lg border p-4 text-sm leading-6 ${state.status === "error" ? "border-brand/30 bg-brand/5 text-brand" : "border-line bg-canvas text-ink"}`}
         >

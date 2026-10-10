@@ -5,6 +5,7 @@ import { createStorageAdminClient } from "@/lib/supabase/storage-admin";
 import { getSupabaseEnvironment } from "@/lib/supabase/config";
 import { isUuid } from "@/lib/auth/redirects";
 import { isFileKind, slidesBucket, type SlideFile } from "./config";
+import { RequestBodyError } from "@/lib/security/request-body";
 
 export class FileRequestError extends Error {
   constructor(
@@ -18,12 +19,15 @@ export function fileError(error: unknown) {
   return Response.json(
     {
       error:
-        error instanceof FileRequestError
+        error instanceof FileRequestError || error instanceof RequestBodyError
           ? error.message
           : "The file service is unavailable. Please try again.",
     },
     {
-      status: error instanceof FileRequestError ? error.status : 503,
+      status:
+        error instanceof FileRequestError || error instanceof RequestBodyError
+          ? error.status
+          : 503,
       headers: { "Cache-Control": "private, no-store" },
     },
   );

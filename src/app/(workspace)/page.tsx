@@ -28,7 +28,7 @@ export default async function HomePage() {
             Every Tuesday, ICI Lab comes together to explore new research,
             technologies, and ideas.
           </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-8 flex flex-col flex-wrap gap-3 sm:flex-row">
             <ButtonLink href="/schedule">
               View upcoming presentations
               <Icon name="arrow" className="size-4" />
@@ -159,7 +159,7 @@ export default async function HomePage() {
       </section>
 
       <section
-        className="flex flex-col items-start justify-between gap-6 border-t border-line pt-10 sm:flex-row sm:items-center"
+        className="flex flex-col flex-wrap items-start justify-between gap-6 border-t border-line pt-10 sm:flex-row sm:items-center"
         aria-labelledby="archive-heading"
       >
         <div className="flex items-start gap-4">

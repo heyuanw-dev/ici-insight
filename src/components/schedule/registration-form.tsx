@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
+import { useFormFeedback } from "@/components/ui/use-form-feedback";
 import { registerPresentation } from "@/app/(workspace)/presentations/new/actions";
 import { emptyRegistration } from "@/lib/schedule/registration";
 
@@ -19,14 +20,21 @@ export function RegistrationForm({
     emptyRegistration,
   );
   const errors = state.errors;
+  const form = useFormFeedback(
+    state,
+    !pending && Boolean(state.message || errors),
+  );
   return (
     <form
+      ref={form}
       action={action}
       onReset={(event) => event.preventDefault()}
       className="space-y-6"
     >
       {(state.message || (errors && Object.keys(errors).length > 0)) && (
         <div
+          data-form-feedback
+          tabIndex={-1}
           role="alert"
           className="rounded-lg border border-brand/30 bg-brand-soft p-4 text-sm leading-6 text-brand"
         >
@@ -52,7 +60,7 @@ export function RegistrationForm({
         <legend className="sr-only">Presentation information</legend>
         <input type="hidden" name="slotId" value={slotId} />
         <PresentationFields state={state} categories={categories} />
-        <div className="flex flex-col gap-3 border-t border-line pt-6 sm:flex-row sm:items-center sm:gap-6">
+        <div className="flex flex-col flex-wrap gap-3 border-t border-line pt-6 sm:flex-row sm:items-center sm:gap-6">
           <button
             type="submit"
             aria-busy={pending}

@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/form-styles";
 import { formatPresentationDate } from "@/lib/schedule/dates";
 import type { AdminResult } from "@/lib/admin/validation";
+import { useFormFeedback } from "@/components/ui/use-form-feedback";
 
 function ScheduleForm({
   operation,
@@ -24,8 +25,10 @@ function ScheduleForm({
     manageSchedule,
     {},
   );
+  const form = useFormFeedback(state, !pending && Boolean(state.message));
   return (
     <form
+      ref={form}
       action={action}
       aria-label={label}
       onReset={(event) => event.preventDefault()}
@@ -33,6 +36,8 @@ function ScheduleForm({
     >
       {state.message && (
         <p
+          data-form-feedback
+          tabIndex={-1}
           role="alert"
           className="rounded-lg border border-brand/30 bg-brand-soft p-4 text-sm leading-7 text-brand"
         >

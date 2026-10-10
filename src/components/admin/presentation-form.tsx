@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useRef, useState } from "react";
+import { useFormFeedback } from "@/components/ui/use-form-feedback";
 import {
   saveAdminPresentation,
   removeAdminPresentation,
@@ -43,6 +44,20 @@ export function AdminPresentationForm({
   const [presenter, setPresenter] = useState(presenterId);
   const [operation, setOperation] = useState<"cancel" | "delete" | null>(null);
   const pending = saving || removing;
+  const form = useFormFeedback(
+    state,
+    !pending && Boolean(state.message || state.errors),
+  );
+  const removalForm = useFormFeedback(
+    removal,
+    !pending && Boolean(removal.message),
+  );
+  const cancelToggle = useRef<HTMLButtonElement>(null);
+  const deleteToggle = useRef<HTMLButtonElement>(null);
+  const keepPresentation = () => {
+    setOperation(null);
+    (operation === "cancel" ? cancelToggle : deleteToggle).current?.focus();
+  };
   const reload = (
     <a
       href={`/presentations/${id}/edit`}
@@ -60,6 +75,7 @@ export function AdminPresentationForm({
   return (
     <div className="space-y-6">
       <form
+        ref={form}
         action={save}
         onReset={(event) => event.preventDefault()}
         aria-label="Admin edit presentation"
@@ -67,6 +83,8 @@ export function AdminPresentationForm({
       >
         {(state.message || state.errors) && (
           <div
+            data-form-feedback
+            tabIndex={-1}
             role="alert"
             className="rounded-lg border border-brand/30 bg-brand-soft p-4 text-sm leading-7 text-brand"
           >
@@ -113,7 +131,7 @@ export function AdminPresentationForm({
               onChange={(e) => setSlotId(e.target.value)}
               className={presentationInputClass}
               aria-invalid={Boolean(state.errors?.slot)}
-              aria-describedby="admin-slot-hint"
+              aria-describedby={`admin-slot-hint${state.errors?.slot ? " admin-slot-error" : ""}`}
             >
               {slots.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -132,6 +150,11 @@ export function AdminPresentationForm({
                 ? "This record is cancelled; changing its date will not reserve a slot or restore the presentation."
                 : "Moving to another date reserves that slot and frees the previous one. The presentation’s status follows its date in Vancouver."}
             </p>
+            {state.errors?.slot && (
+              <p id="admin-slot-error" className="mt-2 text-sm text-brand">
+                {state.errors.slot}
+              </p>
+            )}
             <ButtonLink
               href="/schedule/manage"
               variant="secondary"
@@ -141,7 +164,7 @@ export function AdminPresentationForm({
             </ButtonLink>
           </div>
           <PresentationFields state={state} categories={categories} />
-          <div className="flex flex-col gap-3 border-t border-line pt-6 sm:flex-row">
+          <div className="flex flex-col flex-wrap gap-3 border-t border-line pt-6 sm:flex-row">
             <button
               type="submit"
               aria-busy={saving}
@@ -174,6 +197,7 @@ export function AdminPresentationForm({
         <div className="flex flex-wrap gap-3">
           {!cancelled && (
             <button
+              ref={cancelToggle}
               type="button"
               disabled={pending}
               onClick={() => setOperation("cancel")}
@@ -187,6 +211,7 @@ export function AdminPresentationForm({
             </button>
           )}
           <button
+            ref={deleteToggle}
             type="button"
             disabled={pending}
             onClick={() => setOperation("delete")}
@@ -201,6 +226,13 @@ export function AdminPresentationForm({
         </div>
         {operation && (
           <form
+            ref={removalForm}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && !pending) {
+                event.preventDefault();
+                keepPresentation();
+              }
+            }}
             key={operation}
             id="admin-remove-confirmation"
             action={remove}
@@ -212,7 +244,12 @@ export function AdminPresentationForm({
             className="space-y-4 border-t border-line pt-5"
           >
             {removal.message && (
-              <p role="alert" className="text-sm leading-7 text-brand">
+              <p
+                role="alert"
+                data-form-feedback
+                tabIndex={-1}
+                className="text-sm leading-7 text-brand"
+              >
                 {removal.message} {reload}
               </p>
             )}
@@ -250,6 +287,13 @@ export function AdminPresentationForm({
                   : operation === "cancel"
                     ? "Confirm cancellation"
                     : "Confirm deletion"}
+              </button>
+              <button
+                type="button"
+                onClick={keepPresentation}
+                className="ml-3 min-h-11 rounded-lg border border-line px-4 py-3 text-sm font-medium"
+              >
+                Keep presentation
               </button>
             </fieldset>
           </form>
