@@ -12,6 +12,9 @@ export type RegistrationState = {
   errors?: Partial<Record<keyof RegistrationValues | "slot", string>>;
   message?: string;
 };
+export type RegistrationResult = RegistrationState & {
+  presentationId?: string;
+};
 export const emptyRegistration: RegistrationState = {
   values: { title: "", categoryId: "", description: "", referenceUrl: "" },
 };

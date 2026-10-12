@@ -23,7 +23,7 @@ The website should allow employees to:
 - Volunteer for an available presentation slot.
 - Register their presentation topic.
 - Edit, reschedule, or cancel their own upcoming presentation, including on its scheduled date.
-- Upload or replace their own presentation slides, including after completion.
+- Optionally upload slides during registration, or upload and replace their own slides before or after completion.
 - Browse previous presentations.
 - Search and filter the presentation archive.
 - View archived presentation slides in the browser.
@@ -301,6 +301,12 @@ One optional URL.
 
 Example: research paper, GitHub repository, article, product page, or demo.
 
+**Presentation slides**
+
+Optional original PowerPoint (`.pptx`) and optional PDF preview (`.pdf`). Users may select either or both files in the registration form; neither is required to reserve a slot. Apply the same configurable file-size limit and server-side file validation used by the presentation detail page.
+
+Reserve the slot before uploading selected slides. File bytes upload directly to private Storage. If a file fails, keep the confirmed booking and any successfully saved file, show a clear error, and allow the user to retry only the remaining uploads or continue and add slides later. Retrying uploads must not create another booking.
+
 ### Booking Rules
 
 For the MVP:
@@ -395,7 +401,7 @@ The presentation detail page should display the PDF directly within the browser.
 
 Do **not** implement automatic PowerPoint-to-PDF conversion in the MVP unless specifically requested, as stated in Section 19.
 
-The presenter may upload or replace both files for their own presentation, including after completion. Administrators may upload or replace files for any presentation.
+The presenter may optionally upload either or both files during registration, and upload or replace files for their own presentation before or after completion. Administrators may upload or replace files for any presentation.
 
 File management is a separate permission from metadata editing. Uploading or replacing slides does not permit regular users to change completed presentation metadata. Slides are not required at registration, and a completed presentation remains in the archive while its files are missing.
 
@@ -426,7 +432,8 @@ User signs in
 → finds an available slot on the current date or a future presentation date  
 → clicks **Volunteer to Present**  
 → enters a required title and optionally adds a category, description of up to 500 characters, and one reference URL  
-→ submits  
+→ optionally selects PowerPoint and/or PDF slides\
+→ submits the registration and selected slides\
 → receives confirmation  
 → presentation appears in the upcoming schedule.
 
@@ -455,12 +462,12 @@ User signs in
 
 ### Journey 4 — Upload Slides
 
-After a presentation is completed:
+Slides can be selected in the registration form. They can also be uploaded or replaced at any time after registration, before or after the presentation is completed:
 
-The presenter opens their own presentation, or an administrator opens any presentation  
+The presenter opens their own presentation from the schedule or archive, or an administrator opens any presentation\
 → uploads or replaces the original PowerPoint  
 → optionally uploads or replaces the PDF preview  
-→ available files can be accessed from the presentation archive.
+→ available files can be accessed from the presentation detail page, including from the archive after completion.
 
 The presenter can manage these files while historical metadata remains editable only by an administrator.
 
@@ -736,7 +743,7 @@ The MVP will be considered successful when:
 1. Invited employees can securely sign in; public self-registration is disabled.
 2. Employees can see available and booked slots, including multiple slots on a date, with the next 12 weeks shown by default from an initial six-month schedule.
 3. Employees can volunteer for an open, available slot on the current America/Vancouver date or a future date; closed and past slots cannot be booked by regular users.
-4. Employees must supply a title and may optionally supply a category, a description of up to 500 characters, and one reference URL.
+4. Employees must supply a title and may optionally supply a category, a description of up to 500 characters, and one reference URL. They may also select PowerPoint and/or PDF slides in the registration form. Upload failure retains the booking and any saved slides, with retry or upload-later options.
 5. A slot cannot accidentally be booked twice, including during concurrent bookings or rescheduling; separate slots on the same date can each hold a presentation.
 6. Employees can edit, reschedule, or cancel their own upcoming presentations, including on the scheduled date. Rescheduling frees the original slot only after successfully reserving the destination; cancellation retains the record and frees the slot.
 7. Non-cancelled, non-deleted presentations automatically become Completed and appear in the archive at the following America/Vancouver midnight. Historical metadata is admin-only, while presenters can upload or replace their own slides after completion.
@@ -767,7 +774,7 @@ The first version should focus on the core presentation workflow.
 - Search and filters
 - PowerPoint storage
 - PDF slide preview
-- Presenter upload/replacement of their own slides, including after completion
+- Optional slide uploads during registration and presenter upload/replacement of their own slides before or after completion
 - Invite-only authentication through Supabase Auth
 - Basic administrative permissions
 - Schedule extension, holiday closures, and soft deletion

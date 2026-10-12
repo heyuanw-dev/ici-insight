@@ -14,13 +14,15 @@ Internal weekly AI presentation workspace for ICI Lab. [REQUIREMENTS.md](./REQUI
 
 - A live completed archive with partial-word search, presenter/category/year/date filters, pagination, file-availability indicators, and protected metadata detail pages.
 
-- Private PowerPoint/PDF upload and replacement, including after completion, authenticated PowerPoint download, and browser PDF preview. Presenters manage their own slides; administrators manage any visible presentation's slides. Replacements preserve current files until validation and an atomic save succeed.
+- Optional PowerPoint/PDF uploads in the registration form, plus private upload and replacement before or after completion, authenticated PowerPoint download, and browser PDF preview. Presenters manage their own slides; administrators manage any visible presentation's slides. Replacements preserve current files until validation and an atomic save succeed.
 
 - Administrator schedule extension, additional same-day slots, slot/date closures, historical metadata/presenter/date corrections, and confirmed cancellation or soft deletion. Closures never silently change bookings; deletion retains all records and files.
 
 - Per-request browser security policies, bounded upload metadata, accessible validation focus and retry feedback, narrow-screen reflow, and regression/security checks.
 
 Business changes use restricted database functions; direct table writes remain denied to employees, including application administrators. See [Phase 8 verification and Success Criteria](./docs/phase-8.md).
+
+Registration keeps slide uploads optional. Selected files use the same private Storage upload and server validation as the presentation detail page; file bytes never pass through the booking Server Action. The slot is reserved first. If a file fails, the form retains the booking and saved slides, offers **Retry uploads** for the remaining files, and lets the presenter continue to the schedule or open their presentation. No database migration or new environment variable is needed. If Storage is unavailable, employees can still register without slides.
 
 ## Run locally
 

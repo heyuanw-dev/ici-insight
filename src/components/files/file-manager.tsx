@@ -10,61 +10,7 @@ import {
   type SlideFile,
 } from "@/lib/files/config";
 
-async function post(url: string, input?: unknown) {
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: input ? JSON.stringify(input) : undefined,
-    });
-  } catch {
-    throw new Error("The upload connection was interrupted. Please retry.");
-  }
-  const parsed: unknown = await response.json().catch(() => null);
-  if (!parsed || typeof parsed !== "object")
-    throw new Error("Unexpected file response. Please reload and retry.");
-  const result = parsed as Record<string, unknown>;
-  if (!response.ok)
-    throw new Error(
-      typeof result.error === "string"
-        ? result.error
-        : "The file could not be saved. Please retry.",
-    );
-  return result;
-}
-function transfer(
-  url: string,
-  mime: string,
-  file: File,
-  progress: (value: number) => void,
-) {
-  return new Promise<void>((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", url);
-    xhr.setRequestHeader("Content-Type", mime);
-    xhr.setRequestHeader(
-      "apikey",
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "",
-    );
-    xhr.timeout = 10 * 60 * 1000;
-    xhr.upload.onprogress = (event) => {
-      if (event.lengthComputable)
-        progress(Math.round((event.loaded / event.total) * 100));
-    };
-    xhr.onload = () =>
-      xhr.status >= 200 && xhr.status < 300
-        ? resolve()
-        : reject(
-            new Error(
-              "The upload did not finish. Check your connection and the file size, then retry.",
-            ),
-          );
-    xhr.onerror = xhr.ontimeout = () =>
-      reject(new Error("The upload connection was interrupted. Please retry."));
-    xhr.send(file);
-  });
-}
+import { uploadSlide } from "@/lib/files/upload";
 
 export function FileManager({
   id,
@@ -109,25 +55,15 @@ export function FileManager({
     setMessage(null);
     setProgress(0);
     setStage("Preparing upload…");
-    const base = `/api/presentations/${id}/files/uploads`;
     try {
-      const prepared = await post(base, {
+      await uploadSlide({
+        id,
         kind,
-        name: selected.name,
-        size: selected.size,
-        mime: selected.type,
+        file: selected,
         expectedFileId: files.find((file) => file.kind === kind)?.id ?? null,
+        onStage: setStage,
+        onProgress: setProgress,
       });
-      if (
-        typeof prepared.uploadUrl !== "string" ||
-        typeof prepared.mime !== "string" ||
-        typeof prepared.uploadId !== "string"
-      )
-        throw new Error("The upload could not be prepared. Please retry.");
-      setStage("Uploading…");
-      await transfer(prepared.uploadUrl, prepared.mime, selected, setProgress);
-      setStage("Validating and saving…");
-      await post(`${base}/${prepared.uploadId}`);
       form.reset();
       setMessage({
         kind,
@@ -153,8 +89,9 @@ export function FileManager({
       <h3 className="text-lg font-semibold">Manage slides</h3>
       <p className="mt-2 text-sm leading-7 text-muted">
         Upload a PowerPoint and an optional PDF for browser viewing. Each file
-        can be up to {formatFileSize(maxBytes)}. You can replace slides after
-        the presentation. These changes leave presentation details unchanged.
+        can be up to {formatFileSize(maxBytes)}. You can upload or replace
+        slides before or after the presentation. These changes leave
+        presentation details unchanged.
       </p>
       <p className="mt-2 text-sm leading-7 text-muted">
         When replacing slides, update the PDF too if its content has changed.

@@ -8,12 +8,10 @@ import {
   bookingError,
   validateRegistration,
   type RegistrationState,
+  type RegistrationResult,
 } from "@/lib/schedule/registration";
 
-export async function registerPresentation(
-  _previous: RegistrationState,
-  form: FormData,
-): Promise<RegistrationState> {
+async function bookPresentation(form: FormData): Promise<RegistrationResult> {
   await requireEmployee();
   const input = validateRegistration(form);
   if (!input.valid) return { values: input.values, errors: input.errors };
@@ -36,8 +34,28 @@ export async function registerPresentation(
   } catch {
     return { values: input.values, ...bookingError("") };
   }
+  return { values: input.values, presentationId: id };
+}
+
+export async function registerPresentation(
+  _previous: RegistrationState,
+  form: FormData,
+): Promise<RegistrationState> {
+  const result = await bookPresentation(form);
+  if (!result.presentationId) return result;
   revalidatePath("/");
   revalidatePath("/schedule");
   revalidatePath("/presentations/new");
-  redirect(`/schedule?registered=${id}#presentation-${id}`);
+  redirect(
+    `/schedule?registered=${result.presentationId}#presentation-${result.presentationId}`,
+  );
+}
+
+export async function registerWithSlides(
+  form: FormData,
+): Promise<RegistrationResult> {
+  // Keep the registration UI mounted until its direct-to-Storage uploads finish.
+  // Revalidating from this action could replace it with "Slot unavailable".
+  // A full navigation afterwards reads the uncached schedule and confirmation.
+  return bookPresentation(form);
 }

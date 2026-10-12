@@ -6,6 +6,7 @@ import { RegistrationForm } from "@/components/schedule/registration-form";
 import { getRegistrationSlot } from "@/lib/schedule/data";
 import { formatPresentationDate } from "@/lib/schedule/dates";
 import { requireEmployee } from "@/lib/auth/session";
+import { fileSizeLimit } from "@/lib/files/server";
 
 export const metadata: Metadata = { title: "Volunteer to present" };
 export default async function NewPresentationPage({
@@ -17,6 +18,14 @@ export default async function NewPresentationPage({
   const { slot: id } = await searchParams;
   const selection =
     typeof id === "string" ? await getRegistrationSlot(id) : null;
+  let maxBytes: number | null = null;
+  if (selection && !selection.unavailable) {
+    try {
+      maxBytes = await fileSizeLimit();
+    } catch {
+      // Optional uploads must not prevent registration during a Storage outage.
+    }
+  }
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader
@@ -89,6 +98,7 @@ export default async function NewPresentationPage({
               <RegistrationForm
                 slotId={selection.slot.id}
                 categories={selection.categories}
+                maxBytes={maxBytes}
               />
             </section>
           )}
