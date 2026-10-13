@@ -10,7 +10,7 @@ export function SiteFooter() {
           A shared space for AI insight.
         </p>
         <p>
-          Weekly on Tuesdays{" "}
+          Weekly, usually Tuesdays{" "}
           <span className="mx-2" aria-hidden="true">
             ·
           </span>{" "}

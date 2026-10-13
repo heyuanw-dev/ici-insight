@@ -494,6 +494,15 @@ export type Database = {
         Args: { p_end: string; p_start: string };
         Returns: number;
       };
+      admin_move_presentation_day: {
+        Args: {
+          p_confirm: boolean;
+          p_slots: Json;
+          p_source: string;
+          p_target: string;
+        };
+        Returns: string;
+      };
       admin_remove_presentation: {
         Args: {
           p_confirm?: boolean;

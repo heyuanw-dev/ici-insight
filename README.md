@@ -7,7 +7,7 @@ Internal weekly AI presentation workspace for ICI Lab. [REQUIREMENTS.md](./REQUI
 - Next.js App Router, strict TypeScript, Tailwind CSS, responsive navigation, shared visual components, and accessible page layouts.
 - Invite-only email/password sign-in, invitation acceptance, password setup/recovery, and sign-out using Supabase Auth.
 - Verified server sessions, active employee profiles, database-controlled user/admin roles, protected routes, and database read authorization.
-- PostgreSQL schema for employees, categories, slots, presentations, and file metadata; six months of Tuesday slots and the 12 reference categories.
+- PostgreSQL schema for employees, categories, slots, presentations, and file metadata; six months of weekly slots (two on Tuesday by default) and the 12 reference categories.
 - Live upcoming presentations on Home, a schedule grouped by date and slot, 12-week navigation, and self-service registration with confirmation and conflict handling.
 
 - Editing, rescheduling, and explicitly confirmed cancellation of your own upcoming presentations, including same-day changes. Moves preserve the original booking on failure; stale forms cannot overwrite newer changes. Cancelled records and files are retained.
@@ -16,13 +16,19 @@ Internal weekly AI presentation workspace for ICI Lab. [REQUIREMENTS.md](./REQUI
 
 - Optional PowerPoint/PDF uploads in the registration form, plus private upload and replacement before or after completion, authenticated PowerPoint download, and browser PDF preview. Presenters manage their own slides; administrators manage any visible presentation's slides. Replacements preserve current files until validation and an atomic save succeed.
 
-- Administrator schedule extension, additional same-day slots, slot/date closures, historical metadata/presenter/date corrections, and confirmed cancellation or soft deletion. Closures never silently change bookings; deletion retains all records and files.
+- Administrator schedule extension, confirmed weekly day changes, additional same-day slots, slot/date closures, historical metadata/presenter/date corrections, and confirmed cancellation or soft deletion. Closures never silently change bookings; deletion retains all records and files.
 
 - Per-request browser security policies, bounded upload metadata, accessible validation focus and retry feedback, narrow-screen reflow, and regression/security checks.
 
 Business changes use restricted database functions; direct table writes remain denied to employees, including application administrators. See [Phase 8 verification and Success Criteria](./docs/phase-8.md).
 
 Registration keeps slide uploads optional. Selected files use the same private Storage upload and server validation as the presentation detail page; file bytes never pass through the booking Server Action. The slot is reserved first. If a file fails, the form retains the booking and saved slides, offers **Retry uploads** for the remaining files, and lets the presenter continue to the schedule or open their presentation. No database migration or new environment variable is needed. If Storage is unavailable, employees can still register without slides.
+
+## Weekly scheduling update
+
+Apply `supabase/migrations/20261012000000_weekly_schedule.sql` before deploying this update. It adds the administrator-only day-move RPC and changes weekly generation to two Tuesday slots in unconfigured weeks. It also adds a second slot to each existing current/future week containing exactly one slot, keeping its open/closed setting. Weeks already containing multiple slots and all historical slots are left unchanged. No new tables, dependencies, environment variables, or Storage changes are required.
+
+Use **Schedule → Manage schedule → Change presentation day**. The form uses the dates in the selected 12-week administration window. Existing destination slots are not merged automatically, and the bulk move stays within one Monday–Sunday week; use individual presentation editors for other rescheduling. Other dates in the same week are unaffected. Re-seeding and schedule extension skip any week already containing slots, so they preserve the selected day and do not top up deliberately configured weeks.
 
 ## Run locally
 
@@ -134,7 +140,7 @@ The archive derives completion from Vancouver midnight on each database read. `a
 
 A partial unique index prevents duplicate active bookings while cancellation/soft deletion releases the slot. Completion uses the following **America/Vancouver** midnight. The seed creates Tuesdays in `[today, today + 6 calendar months)` and preserves matching categories, slots, and closures when rerun. No sample employees or presentations are seeded.
 
-Admins manage the schedule from **Schedule → Manage schedule**. Extensions add Tuesday slots only on dates with no slots and preserve all existing bookings and closures. A date closure also covers slots created afterward; reopening that date preserves individual slot closures. Booked slots/dates must have their presentations explicitly moved or cancelled before closure. A slot with any presentation history keeps its date/number; reschedule the presentation from its editor. Admin soft deletion hides the record and file access without deleting stored data. See [Phase 7 behavior and migration](./docs/phase-7.md).
+Admins manage the schedule from **Schedule → Manage schedule**. Extensions add two Tuesday slots only to weeks with no slots and preserve existing bookings, moved days, and closures. **Change presentation day** moves all slots and active bookings on a date to an empty day in the same Monday–Sunday week after confirmation. Dates must be current/future and not closed. Slides remain attached; cancelled/deleted history stays on the original date in closed slots. Conflicts and stale forms leave the schedule unchanged. A date closure also covers slots created afterward; reopening that date preserves individual slot closures. Booked slots/dates must have their presentations explicitly moved or cancelled before closure. An individual slot with presentation history keeps its date/number; use the day-change form for a whole date or reschedule one presentation from its editor. Admin soft deletion hides the record and file access without deleting stored data. See [Phase 7 behavior and migration](./docs/phase-7.md).
 
 File binaries live in the private `presentation-slides` Storage bucket. Uploads validate extension, MIME, size, and content before attachment. The 50 MB default is configured on the bucket; application forms and server validation read that limit. PPTX inspection uses a small ZIP reader (`yauzl`) with bounded XML decompression. PDF validation checks its signature and EOF marker. No automatic conversion occurs. Superseded and abandoned objects stay inaccessible and retained pending a future retention policy; rejected content is removed best-effort. See [file lifecycle and configuration](./docs/phase-6.md).
 

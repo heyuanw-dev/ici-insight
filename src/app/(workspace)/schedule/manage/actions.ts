@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth/session";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isUuid } from "@/lib/auth/redirects";
+import type { Json } from "@/types/database";
 import {
   adminError,
   dateInput,
@@ -21,9 +22,33 @@ export async function manageSchedule(
   if (!dateInput(date)) return { message: adminError("invalid_date") };
   const operation = form.get("operation");
   let added: number | null = null;
+  let resultDate = date;
   try {
     const client = await createSupabaseServerClient(true);
-    if (operation === "extend") {
+    if (operation === "move") {
+      const target = form.get("target");
+      if (!dateInput(target))
+        return { message: adminError("invalid_week_day") };
+      if (form.get("confirm") !== "yes")
+        return { message: adminError("confirmation_required") };
+      const raw = form.get("slots");
+      if (typeof raw !== "string")
+        return { message: adminError("day_move_changed") };
+      let slots: Json;
+      try {
+        slots = JSON.parse(raw) as Json;
+      } catch {
+        return { message: adminError("day_move_changed") };
+      }
+      const { error } = await client.rpc("admin_move_presentation_day", {
+        p_source: date,
+        p_target: target,
+        p_slots: slots,
+        p_confirm: true,
+      });
+      if (error) return { message: adminError(error.message, error.code) };
+      resultDate = target < date ? target : date;
+    } else if (operation === "extend") {
       const end = form.get("end");
       if (!dateInput(end))
         return { message: adminError("invalid_schedule_range") };
@@ -74,6 +99,6 @@ export async function manageSchedule(
   }
   revalidatePath("/", "layout");
   redirect(
-    `/schedule/manage?start=${date}&notice=${operation}${added === null ? "" : `&added=${added}`}`,
+    `/schedule/manage?start=${resultDate}&notice=${operation}${added === null ? "" : `&added=${added}`}`,
   );
 }

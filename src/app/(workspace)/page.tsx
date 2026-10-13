@@ -25,8 +25,8 @@ export default async function HomePage() {
           </h1>
           <p className="mt-6 max-w-xl text-base leading-8 text-muted">
             Discover, share, and revisit the latest in artificial intelligence.
-            Every Tuesday, ICI Lab comes together to explore new research,
-            technologies, and ideas.
+            Each week, usually on Tuesday, ICI Lab comes together to explore new
+            research, technologies, and ideas.
           </p>
           <div className="mt-8 flex flex-col flex-wrap gap-3 sm:flex-row">
             <ButtonLink href="/schedule">

@@ -50,7 +50,7 @@ async function presentation(userId, slotId) {
 
 const failsWith = (code) => (error) => error.code === code;
 
-test("seed creates the 12 categories and exactly six months of Tuesdays without employees or presentations", async () => {
+test("seed creates the 12 categories and two slots for exactly six months of Tuesdays without employees or presentations", async () => {
   await db.exec(seed);
   const {
     rows: [counts],
@@ -60,7 +60,7 @@ test("seed creates the 12 categories and exactly six months of Tuesdays without 
       (select count(*)::int from public.users) as users,
       (select count(*)::int from public.presentations) as presentations,
       (select count(*)::int from public.presentation_slots) as slots,
-      (select bool_and(extract(isodow from presentation_date) = 2 and slot_number = 1 and is_open)
+      (select bool_and(extract(isodow from presentation_date) = 2 and slot_number in (1,2) and is_open)
         from public.presentation_slots) as valid_slots,
       (select min(presentation_date) - (now() at time zone 'America/Vancouver')::date
         from public.presentation_slots) as first_day_offset,
@@ -68,13 +68,14 @@ test("seed creates the 12 categories and exactly six months of Tuesdays without 
         from public.presentation_slots) as last_day_offset,
       (select bool_and(gap = 7) from (
         select presentation_date - lag(presentation_date) over (order by presentation_date) as gap
-        from public.presentation_slots
+        from (select distinct presentation_date from public.presentation_slots) dates
       ) as gaps) as weekly_without_gaps
   `);
   assert.equal(counts.categories, 12);
   assert.equal(counts.users, 0);
   assert.equal(counts.presentations, 0);
-  assert.ok(counts.slots >= 25 && counts.slots <= 27);
+  assert.ok(counts.slots >= 50 && counts.slots <= 54);
+  assert.equal(counts.slots % 2, 0);
   assert.equal(counts.valid_slots, true);
   assert.ok(counts.first_day_offset >= 0 && counts.first_day_offset < 7);
   assert.ok(counts.last_day_offset > 0 && counts.last_day_offset <= 7);
@@ -96,7 +97,7 @@ test("re-seeding preserves closed dates, bookings, category configuration, and e
   const {
     rows: [extra],
   } = await db.query(
-    "insert into public.presentation_slots (presentation_date, slot_number) values ($1, 2) returning id",
+    "insert into public.presentation_slots (presentation_date, slot_number) values ($1, 3) returning id",
     [firstSlot.presentation_date],
   );
   const presentationId = await presentation(userId, extra.id);
@@ -380,5 +381,73 @@ test("anonymous and unlinked authenticated identities cannot read internal recor
     } finally {
       await db.exec("reset role");
     }
+  }
+});
+
+test("weekly migration upgrades upcoming singleton weeks while preserving bookings, closed settings, custom days and history", async () => {
+  const upgraded = await database({
+    beforeMigration: async (connection, name) => {
+      if (name !== "20261012000000_weekly_schedule.sql") return;
+      await connection.exec(`
+      create temporary table migration_dates as select
+        date_trunc('week', (now() at time zone 'America/Vancouver')::date)::date + 7 as monday;
+      insert into public.presentation_slots(presentation_date,slot_number,is_open)
+      select monday + day_offset, number, opened from migration_dates,
+        (values (1,1,true),(8,1,false),(16,4,true),(22,1,true),(22,2,true),(-13,1,true),(29,1,true)) v(day_offset,number,opened);
+      insert into public.schedule_date_closures(presentation_date) select monday+29 from migration_dates;
+      insert into public.users(name,email) values ('Retained presenter','upgrade@example.test');
+      insert into public.presentations(presenter_user_id,slot_id,title)
+        select u.id,s.id,'Retained booking' from public.users u,public.presentation_slots s,migration_dates d
+        where s.presentation_date=d.monday+1;
+      create temporary table before_slots as select * from public.presentation_slots;
+      create temporary table before_presentations as select * from public.presentations;
+    `);
+    },
+  });
+  try {
+    assert.equal(
+      (
+        await upgraded.query(
+          "select count(*)::int n from public.presentation_slots",
+        )
+      ).rows[0].n,
+      11,
+    );
+    assert.equal(
+      (
+        await upgraded.query(
+          "select count(*)::int n from (select * from before_slots except select * from public.presentation_slots) t",
+        )
+      ).rows[0].n,
+      0,
+    );
+    assert.equal(
+      (
+        await upgraded.query(
+          "select count(*)::int n from (select * from before_presentations except select * from public.presentations) t",
+        )
+      ).rows[0].n,
+      0,
+    );
+    const result = (
+      await upgraded.query(`select s.presentation_date-d.monday as day_offset,s.slot_number,s.is_open
+      from public.presentation_slots s,migration_dates d where s.id not in (select id from before_slots) order by day_offset`)
+    ).rows;
+    assert.deepEqual(result, [
+      { day_offset: 1, slot_number: 2, is_open: true },
+      { day_offset: 8, slot_number: 2, is_open: false },
+      { day_offset: 16, slot_number: 1, is_open: true },
+      { day_offset: 29, slot_number: 2, is_open: true },
+    ]);
+    assert.equal(
+      (
+        await upgraded.query(
+          "select bool_and(not is_open) closed from public.schedule_slots s,migration_dates d where s.presentation_date=d.monday+29",
+        )
+      ).rows[0].closed,
+      true,
+    );
+  } finally {
+    await upgraded.close();
   }
 });

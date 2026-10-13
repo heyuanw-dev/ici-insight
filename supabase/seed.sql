@@ -17,20 +17,11 @@ insert into public.categories (name, sort_order) values
   ('Other', 12)
 on conflict (lower(btrim(name))) do nothing;
 
-with horizon as (
-  select (now() at time zone 'America/Vancouver')::date as starts_on
-), dates as (
-  select day::date as presentation_date
-  from horizon,
-  lateral generate_series(
-    starts_on::timestamp,
-    starts_on::timestamp + interval '6 months' - interval '1 day',
-    interval '1 day'
-  ) as day
-)
-insert into public.presentation_slots (presentation_date, slot_number)
-select presentation_date, 1 from dates
-where extract(isodow from presentation_date) = 2
-on conflict (presentation_date, slot_number) do nothing;
+-- Two Tuesday slots for each unconfigured week. Never recreate the original
+-- Tuesday after an admin moves that week's presentation day.
+select private.add_weekly_slots(
+  (now() at time zone 'America/Vancouver')::date,
+  ((now() at time zone 'America/Vancouver')::date + interval '6 months' - interval '1 day')::date
+);
 
 commit;

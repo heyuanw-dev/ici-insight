@@ -13,7 +13,7 @@ Working title. The name may be changed later without affecting the application a
 
 ICI AI Insight Hub is an internal website for organizing the ICI Lab's weekly AI insight presentations.
 
-Every Tuesday, one or more team members may present a recent AI technology, research paper, product, technique, industry development, or other relevant topic.
+Each week, normally on Tuesday, one or more team members may present a recent AI technology, research paper, product, technique, industry development, or other relevant topic.
 
 Each presentation has one presenter. A date may contain multiple presentation slots, with one presentation per slot.
 
@@ -74,6 +74,7 @@ Regular users cannot edit completed presentation metadata, including its title, 
 An administrator should additionally be able to:
 
 - Create or modify presentation dates and slots, including multiple slots on the same day.
+- Change a week’s presentation day, moving a selected date’s slots and bookings together with confirmation.
 - Extend the schedule and close dates or slots, including holidays.
 - Edit any presentation.
 - Soft-delete or cancel any presentation.
@@ -189,7 +190,7 @@ Example message:
 
 Discover, share, and revisit the latest developments in artificial intelligence.
 
-A short description should explain that ICI Lab members meet every Tuesday to share recent AI research, technologies, and developments.
+A short description should explain that ICI Lab members meet weekly, normally on Tuesdays, to share recent AI research, technologies, and developments.
 
 ### Primary Actions
 
@@ -269,11 +270,21 @@ button.
 
 ### Schedule Horizon
 
-Initially create six months of weekly Tuesday slots, with one slot per Tuesday by default. Administrators may add additional slots on the same day or create slots on other dates.
+Initially create six months of weekly slots, with two slots per week on Tuesday by default. Administrators may add additional slots on the same day or create slots on other dates. Existing upcoming weeks with only one slot receive a second slot when this change is migrated; existing bookings, individually closed slots, and date closures are preserved.
 
 Show the next 12 weeks by default, starting from the current local date, and allow users to view later dates already created in the schedule.
 
-Administrators can extend the schedule and close dates or individual slots, including holidays. Extending the schedule must preserve existing bookings and closures without creating duplicate slots or reopening closed dates. Closing a date or slot must not silently cancel or delete an existing presentation; administrators must explicitly reschedule or cancel affected bookings.
+Administrators can extend the schedule and close dates or individual slots, including holidays. Extending or re-seeding the schedule creates two Tuesday slots only in Monday–Sunday weeks that have no slots. It must preserve existing bookings, changed presentation days, extra slots, and closures without recreating an original Tuesday, creating duplicate slots, or reopening closed dates. Closing a date or slot must not silently cancel or delete an existing presentation; administrators must explicitly reschedule or cancel affected bookings.
+
+### Change a Week’s Presentation Day
+
+Administrators can use **Schedule → Manage schedule → Change presentation day** to move all slots and active bookings on a selected date to another day in the same Monday–Sunday week. Both dates must be current or future dates in America/Vancouver. Tuesday is the default, not a restriction.
+
+The destination must have no existing slots, and neither date may be closed. Existing dates are not merged automatically; administrators can use individual presentation editors for those cases or for moves to another week. Other presentation dates in the week remain unchanged.
+
+Show the number of affected slots and bookings and require explicit confirmation. Move all slots and bookings atomically, preserving slot numbers, individual open/closed settings, presentation IDs, content, presenters, and attached files. Reject stale forms when slots or active booking assignments have changed; on failure, preserve the original schedule. Existing presentation editors must detect that a booking has moved.
+
+Cancelled and soft-deleted presentations retain their original dates and files. Original slots containing those records remain closed for history; original slots without retained records are removed. Schedule extension and re-seeding must not recreate Tuesday slots after a day change.
 
 ### Presentation Registration Form
 
@@ -313,7 +324,7 @@ For the MVP:
 
 - Presentations normally occur every Tuesday.
 - Each presentation has exactly one presenter.
-- A date may contain multiple slots. Initially create one slot per Tuesday; administrators may add more.
+- A date may contain multiple slots. Initially create two slots per week on Tuesday; administrators may add more or change a week’s presentation day.
 - Each slot can hold at most one presentation that is neither cancelled nor soft-deleted. A booked slot does not prevent users from booking another available slot on the same date.
 - Regular users may book open, available slots on the current local date or a future date. Past dates and closed slots cannot be booked by regular users.
 - The backend and database must enforce slot availability even when users book or reschedule simultaneously.
@@ -741,7 +752,7 @@ Display a human-readable error message and allow the user to retry.
 The MVP will be considered successful when:
 
 1. Invited employees can securely sign in; public self-registration is disabled.
-2. Employees can see available and booked slots, including multiple slots on a date, with the next 12 weeks shown by default from an initial six-month schedule.
+2. Employees can see available and booked slots, including multiple slots on a date, with two slots per week on Tuesday by default and the next 12 weeks shown from an initial six-month schedule.
 3. Employees can volunteer for an open, available slot on the current America/Vancouver date or a future date; closed and past slots cannot be booked by regular users.
 4. Employees must supply a title and may optionally supply a category, a description of up to 500 characters, and one reference URL. They may also select PowerPoint and/or PDF slides in the registration form. Upload failure retains the booking and any saved slides, with retry or upload-later options.
 5. A slot cannot accidentally be booked twice, including during concurrent bookings or rescheduling; separate slots on the same date can each hold a presentation.
@@ -755,7 +766,7 @@ The MVP will be considered successful when:
 13. The application works correctly on desktop, tablet, and mobile.
 14. Normal page interactions feel fast and responsive.
 15. The application provides understandable loading, empty, success, and error states.
-16. Administrators can extend the schedule, add slots on the same day, and close holiday dates without silently changing existing bookings or reopening closed dates during schedule extension.
+16. Administrators can extend the schedule, add slots on the same day, and close holiday dates without silently changing existing bookings or reopening closed dates. With explicit confirmation, they can atomically move a date’s slots and bookings to another current or future day in the same week, preserving slides and retained history. Conflicts and stale forms leave the original schedule unchanged. Extension and re-seeding preserve changed presentation days.
 17. Administrator deletion uses soft deletion: the presentation and its files are hidden from normal application access while the record and archived files are retained.
 
 ---

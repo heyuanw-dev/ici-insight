@@ -1,12 +1,12 @@
 "use client";
 
-import { useActionState, useId, type ReactNode } from "react";
+import { useActionState, useId, useState, type ReactNode } from "react";
 import { manageSchedule } from "@/app/(workspace)/schedule/manage/actions";
 import {
   presentationInputClass,
   adminButtonClass,
 } from "@/components/ui/form-styles";
-import { formatPresentationDate } from "@/lib/schedule/dates";
+import { calendarWeek, formatPresentationDate } from "@/lib/schedule/dates";
 import type { AdminResult } from "@/lib/admin/validation";
 import { useFormFeedback } from "@/components/ui/use-form-feedback";
 
@@ -67,11 +67,13 @@ function DateField({
   label,
   value,
   min,
+  max,
 }: {
   name?: string;
   label: string;
   value?: string;
   min?: string;
+  max?: string;
 }) {
   const id = useId();
   return (
@@ -86,10 +88,85 @@ function DateField({
         defaultValue={value}
         required
         min={min ?? "0001-01-01"}
-        max="9999-12-31"
+        max={max ?? "9999-12-31"}
         className={presentationInputClass}
       />
     </div>
+  );
+}
+
+export function MovePresentationDayForm({
+  dates,
+  today,
+}: {
+  dates: {
+    date: string;
+    slots: { id: string; revision: number; presentation_id: string | null }[];
+  }[];
+  today: string;
+}) {
+  const [selected, setSelected] = useState(dates[0]?.date);
+  const id = useId();
+  const source = dates.find((item) => item.date === selected) ?? dates[0];
+  if (!source)
+    return (
+      <p className="text-sm text-muted">No upcoming dates in this range.</p>
+    );
+  const week = calendarWeek(source.date);
+  const bookings = source.slots.filter((slot) => slot.presentation_id).length;
+  return (
+    <ScheduleForm
+      key={source.date}
+      operation="move"
+      label="Change presentation day"
+      submit="Change presentation day"
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor={id} className="mb-2 block text-sm font-medium">
+            Current presentation date
+          </label>
+          <select
+            id={id}
+            name="date"
+            value={source.date}
+            onChange={(event) => setSelected(event.target.value)}
+            className={presentationInputClass}
+          >
+            {dates.map((item) => (
+              <option key={item.date} value={item.date}>
+                {formatPresentationDate(item.date)}
+              </option>
+            ))}
+          </select>
+        </div>
+        <DateField
+          name="target"
+          label="New presentation date"
+          min={week.start > today ? week.start : today}
+          max={week.end}
+        />
+      </div>
+      <input type="hidden" name="slots" value={JSON.stringify(source.slots)} />
+      <p className="text-sm leading-7 text-muted">
+        Move all {source.slots.length}{" "}
+        {source.slots.length === 1 ? "slot" : "slots"} and {bookings} booked{" "}
+        {bookings === 1 ? "presentation" : "presentations"} on this date to a
+        different day in the same Monday–Sunday week. Slides stay attached.
+        Individually closed slots stay closed. Cancelled and deleted records
+        retain their original date in closed slots.
+      </p>
+      <label className="flex min-h-11 items-center gap-3 text-sm leading-6">
+        <input
+          type="checkbox"
+          name="confirm"
+          value="yes"
+          required
+          className="size-5 shrink-0 accent-brand"
+        />
+        I confirm that all these slots and booked presentations should move.
+      </label>
+    </ScheduleForm>
   );
 }
 function NumberField({ value }: { value?: number }) {

@@ -110,6 +110,10 @@ test("admin-only RPCs reject employees and revoked admins; direct writes and ano
     ["select public.admin_create_slot($1)", [s.presentation_date]],
     ["select public.admin_extend_schedule($1,$1)", [s.presentation_date]],
     [
+      "select public.admin_move_presentation_day($1,$1,'[]',true)",
+      [s.presentation_date],
+    ],
+    [
       "select public.admin_update_slot($1,1,$2,1,true)",
       [s.id, s.presentation_date],
     ],
@@ -199,7 +203,7 @@ test("schedule extension is repeatable and preserves bookings, extra slots, indi
         end,
       ])
     ).rows[0].count,
-    4,
+    8,
   );
   assert.equal(
     (
@@ -213,7 +217,7 @@ test("schedule extension is repeatable and preserves bookings, extra slots, indi
   assert.equal(
     (await db.query("select count(*)::int as n from public.presentation_slots"))
       .rows[0].n,
-    5,
+    9,
   );
   const preserved = (
     await db.query("select * from public.presentation_slots where id=$1", [
@@ -634,4 +638,245 @@ test("admin cancellation includes completed presentations and is distinct from s
   );
   await remove(admin, cancelled);
   assert.ok((await record(p.id)).deleted_at);
+});
+
+async function nextWeek() {
+  return (
+    await db.query(`select to_char(d + 1, 'YYYY-MM-DD') as tuesday,
+    to_char(d, 'YYYY-MM-DD') as monday, to_char(d + 6, 'YYYY-MM-DD') as sunday,
+    to_char(d + 2, 'YYYY-MM-DD') as wednesday, to_char(d + 7, 'YYYY-MM-DD') as next
+    from (select date_trunc('week', (clock_timestamp() at time zone 'America/Vancouver')::date)::date + 7 as d) t`)
+  ).rows[0];
+}
+async function slotsOn(date, count = 2) {
+  return (
+    await db.query(
+      `insert into public.presentation_slots(presentation_date,slot_number)
+    select $1, n from generate_series(1,$2::integer) n returning *`,
+      [date, count],
+    )
+  ).rows;
+}
+async function daySnapshot(date) {
+  return (
+    await db.query(
+      `select s.id,s.revision,p.id as presentation_id from public.presentation_slots s
+    left join public.presentations p on p.slot_id=s.id and p.cancelled_at is null and p.deleted_at is null
+    where s.presentation_date=$1 order by s.slot_number`,
+      [date],
+    )
+  ).rows;
+}
+async function moveDay(who, source, target, snapshot, confirm = true) {
+  return call(who, "select public.admin_move_presentation_day($1,$2,$3,$4)", [
+    source,
+    target,
+    JSON.stringify(snapshot ?? (await daySnapshot(source))),
+    confirm,
+  ]);
+}
+
+test("a week-day move atomically retains presentations, slides, slot settings and original cancelled/deleted history", async () => {
+  const admin = await employee("admin"),
+    who = await employee(),
+    dates = await nextWeek();
+  const [first, second, third] = await slotsOn(dates.tuesday, 3);
+  const cancelled = await presentation(who, first, true);
+  const deleted = await presentation(who, second);
+  await remove(admin, deleted);
+  const p = await presentation(who, first),
+    q = await presentation(who, second);
+  await attach(p, who);
+  await updateSlot(admin, third, { open: false });
+  await moveDay(admin, dates.tuesday, dates.monday);
+  const moved = await record(p.id),
+    movedSecond = await record(q.id);
+  assert.equal(moved.revision, p.revision + 1);
+  assert.equal(movedSecond.revision, q.revision + 1);
+  for (const key of [
+    "id",
+    "title",
+    "description",
+    "presenter_user_id",
+    "category_id",
+    "reference_url",
+  ])
+    assert.equal(moved[key], p[key]);
+  assert.notEqual(moved.slot_id, first.id);
+  assert.equal((await record(cancelled.id)).slot_id, first.id);
+  assert.equal((await record(deleted.id)).slot_id, second.id);
+  assert.deepEqual(
+    (
+      await db.query(
+        "select slot_number,is_open from public.presentation_slots where presentation_date=$1 order by slot_number",
+        [dates.monday],
+      )
+    ).rows,
+    [
+      { slot_number: 1, is_open: true },
+      { slot_number: 2, is_open: true },
+      { slot_number: 3, is_open: false },
+    ],
+  );
+  assert.deepEqual(
+    (
+      await db.query(
+        "select slot_number,is_open from public.presentation_slots where presentation_date=$1 order by slot_number",
+        [dates.tuesday],
+      )
+    ).rows,
+    [
+      { slot_number: 1, is_open: false },
+      { slot_number: 2, is_open: false },
+    ],
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from public.presentation_files where presentation_id=$1",
+        [p.id],
+      )
+    ).rows[0].n,
+    1,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int n from storage.objects where name=$1",
+        [`${p.id}/original.pdf`],
+      )
+    ).rows[0].n,
+    1,
+  );
+  await assert.rejects(
+    edit(admin, p, first, who),
+    rejects("presentation_changed"),
+  );
+  // Moving again is allowed and does not recreate the normal Tuesday slots.
+  await moveDay(admin, dates.monday, dates.sunday);
+  assert.equal(
+    (
+      await call(admin, "select public.admin_extend_schedule($1,$2) n", [
+        dates.monday,
+        dates.sunday,
+      ])
+    ).rows[0].n,
+    0,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select to_char(presentation_date,'YYYY-MM-DD') as presentation_date from public.presentation_slots where id=$1",
+        [(await record(p.id)).slot_id],
+      )
+    ).rows[0].presentation_date,
+    dates.sunday,
+  );
+});
+
+test("date moves reject past, cross-week, identical, closed and occupied destinations without partial changes", async () => {
+  const admin = await employee("admin"),
+    who = await employee(),
+    dates = await nextWeek();
+  const [first] = await slotsOn(dates.tuesday);
+  const p = await presentation(who, first);
+  const snapshot = await daySnapshot(dates.tuesday);
+  for (const target of [
+    null,
+    "infinity",
+    "-infinity",
+    "10000-01-01",
+    dates.tuesday,
+    dates.next,
+  ])
+    await assert.rejects(
+      moveDay(admin, dates.tuesday, target, snapshot),
+      rejects("invalid_week_day"),
+    );
+  for (const confirm of [false, null])
+    await assert.rejects(
+      moveDay(admin, dates.tuesday, dates.wednesday, snapshot, confirm),
+      rejects("confirmation_required"),
+    );
+  await assert.rejects(
+    moveDay(admin, "2000-01-04", "2000-01-05", []),
+    rejects("day_move_past"),
+  );
+  await closeDate(admin, dates.wednesday);
+  await assert.rejects(
+    moveDay(admin, dates.tuesday, dates.wednesday, snapshot),
+    rejects("day_move_closed"),
+  );
+  await closeDate(admin, dates.wednesday, false);
+  await slotsOn(dates.wednesday, 1);
+  await assert.rejects(
+    moveDay(admin, dates.tuesday, dates.wednesday, snapshot),
+    rejects("day_move_conflict"),
+  );
+  assert.deepEqual(await record(p.id), p);
+  assert.deepEqual(await daySnapshot(dates.tuesday), snapshot);
+  assert.equal((await daySnapshot(dates.wednesday)).length, 1);
+  await assert.rejects(
+    moveDay(admin, dates.monday, dates.sunday, []),
+    rejects("day_move_changed"),
+  );
+});
+
+test("date moves reject stale slot lists, settings, new bookings and cancellations", async () => {
+  const admin = await employee("admin"),
+    who = await employee(),
+    dates = await nextWeek();
+  const [first, second] = await slotsOn(dates.tuesday);
+  let snapshot = await daySnapshot(dates.tuesday);
+  const p = await presentation(who, first);
+  await assert.rejects(
+    moveDay(admin, dates.tuesday, dates.wednesday, snapshot),
+    rejects("day_move_changed"),
+  );
+  snapshot = await daySnapshot(dates.tuesday);
+  await remove(admin, p, "cancel");
+  await assert.rejects(
+    moveDay(admin, dates.tuesday, dates.wednesday, snapshot),
+    rejects("day_move_changed"),
+  );
+  snapshot = await daySnapshot(dates.tuesday);
+  await updateSlot(admin, second, { open: false });
+  await assert.rejects(
+    moveDay(admin, dates.tuesday, dates.wednesday, snapshot),
+    rejects("day_move_changed"),
+  );
+  snapshot = await daySnapshot(dates.tuesday);
+  await call(admin, "select public.admin_create_slot($1)", [dates.tuesday]);
+  await assert.rejects(
+    moveDay(admin, dates.tuesday, dates.wednesday, snapshot),
+    rejects("day_move_changed"),
+  );
+  await closeDate(admin, dates.tuesday);
+  await assert.rejects(
+    moveDay(admin, dates.tuesday, dates.wednesday),
+    rejects("day_move_closed"),
+  );
+  assert.equal((await daySnapshot(dates.wednesday)).length, 0);
+});
+
+test("seed and extension preserve moved empty weeks, even when only part of a week is requested", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const admin = await employee("admin"),
+    dates = await nextWeek();
+  await slotsOn(dates.tuesday);
+  await moveDay(admin, dates.tuesday, dates.sunday);
+  assert.equal((await daySnapshot(dates.tuesday)).length, 0);
+  assert.equal(
+    (
+      await call(admin, "select public.admin_extend_schedule($1,$1) n", [
+        dates.tuesday,
+      ])
+    ).rows[0].n,
+    0,
+  );
+  await db.exec(
+    await readFile(new URL("../../supabase/seed.sql", import.meta.url), "utf8"),
+  );
+  assert.equal((await daySnapshot(dates.tuesday)).length, 0);
+  assert.equal((await daySnapshot(dates.sunday)).length, 2);
 });

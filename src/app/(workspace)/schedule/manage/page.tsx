@@ -7,6 +7,7 @@ import {
   CloseDateForm,
   ReopenDateForm,
   UpdateSlotForm,
+  MovePresentationDayForm,
 } from "@/components/admin/schedule-forms";
 import {
   presentationInputClass,
@@ -27,6 +28,7 @@ export default async function ManageSchedulePage({
   const notices: Record<string, string> = {
     create: "Slot added. Date closures still apply.",
     update: "Slot updated. Date closures still apply.",
+    move: "Presentation day changed. Slots and bookings moved together; slides and retained history were preserved.",
     close: "Date closed, including slots added later.",
     reopen: "Date reopened. Individually closed slots remain closed.",
     extend:
@@ -41,7 +43,7 @@ export default async function ManageSchedulePage({
       <PageHeader
         eyebrow="Administration"
         title="Manage schedule"
-        description="Add dates and slots, extend the weekly schedule, and close dates for holidays. All dates use Vancouver time."
+        description="Add slots, change a week’s presentation day, extend the schedule, and close holiday dates. All dates use Vancouver time."
       >
         <ButtonLink href="/schedule" variant="secondary">
           Back to schedule
@@ -55,7 +57,7 @@ export default async function ManageSchedulePage({
           {notice}
           {query.notice === "extend" &&
           typeof query.added === "string" &&
-          /^\d{1,2}$/.test(query.added)
+          /^\d{1,3}$/.test(query.added)
             ? ` ${query.added} slots added.`
             : ""}
         </p>
@@ -82,9 +84,9 @@ export default async function ManageSchedulePage({
             Extend weekly schedule
           </h2>
           <p className="text-sm leading-7 text-muted">
-            Add one slot on each Tuesday that has no slots yet. Existing
-            bookings and closures stay in place. Extend up to 366 days at a
-            time.
+            Add two Tuesday slots to each week that has no slots yet. Weeks
+            already scheduled on another day, existing bookings, and closures
+            stay in place. Extend up to 366 days at a time.
           </p>
           <ExtendScheduleForm
             key={data.extensionStart}
@@ -165,8 +167,25 @@ export default async function ManageSchedulePage({
             </div>
           </section>
         )}
+        <section
+          className="panel space-y-5 p-6"
+          aria-labelledby="move-day-heading"
+        >
+          <h3 id="move-day-heading" className="text-lg font-semibold">
+            Change presentation day
+          </h3>
+          <p className="text-sm leading-7 text-muted">
+            Tuesdays are the usual day. Choose another current or future day
+            within the same week when needed. The destination must have no
+            existing slots, and neither date can be closed.
+          </p>
+          <MovePresentationDayForm
+            dates={data.movableDates}
+            today={data.today}
+          />
+        </section>
         <p className="text-sm leading-7 text-muted">
-          To change the date of a presentation, use its editor. Slots with
+          To change just one presentation’s date, use its editor. Slots with
           presentation history keep their original date and number. Closing a
           booked slot requires rescheduling or cancelling its presentation
           first.

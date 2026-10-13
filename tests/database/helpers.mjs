@@ -1,7 +1,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 
-export async function database() {
+export async function database({ beforeMigration } = {}) {
   const db = new PGlite();
   // Only Supabase-managed identity infrastructure is stubbed; all application SQL is real.
   await db.exec(`
@@ -33,6 +33,7 @@ export async function database() {
   for (const name of (await readdir(directory))
     .filter((name) => name.endsWith(".sql"))
     .sort()) {
+    await beforeMigration?.(db, name);
     await db.exec(await readFile(new URL(name, directory), "utf8"));
   }
   return db;

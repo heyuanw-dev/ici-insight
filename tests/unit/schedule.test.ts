@@ -6,11 +6,32 @@ import {
   formatPresentationDate,
   scheduleWindow,
   schedulePageForDate,
+  calendarWeek,
 } from "../../src/lib/schedule/dates";
 import {
   validateRegistration,
   bookingError,
 } from "../../src/lib/schedule/registration";
+
+test("presentation weeks run Monday to Sunday across year and daylight-saving boundaries", () => {
+  for (const date of ["2026-12-28", "2026-12-29", "2027-01-03"])
+    assert.deepEqual(calendarWeek(date), {
+      start: "2026-12-28",
+      end: "2027-01-03",
+    });
+  assert.deepEqual(calendarWeek("2026-11-01"), {
+    start: "2026-10-26",
+    end: "2026-11-01",
+  });
+  assert.deepEqual(calendarWeek("0001-01-01"), {
+    start: "0001-01-01",
+    end: "0001-01-07",
+  });
+  assert.deepEqual(calendarWeek("9999-12-31"), {
+    start: "9999-12-27",
+    end: "9999-12-31",
+  });
+});
 
 test("Vancouver dates change at local midnight, independent of UTC and daylight-saving changes", () => {
   for (const [instant, date] of [

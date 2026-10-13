@@ -96,6 +96,20 @@ export async function getAdminSchedule(requestedStart: unknown) {
     closures: closures.data.map((row) => row.presentation_date),
     bookings,
     cancelled,
+    movableDates: [...new Set(slots.map((slot) => slot.presentation_date))]
+      .filter((date) => date >= today)
+      .map((date) => ({
+        date,
+        slots: slots
+          .filter((slot) => slot.presentation_date === date)
+          .map((slot) => ({
+            id: slot.id,
+            revision: slot.revision,
+            presentation_id:
+              bookings.find((booking) => booking.slot_id === slot.id)
+                ?.presentation_id ?? null,
+          })),
+      })),
     extensionStart,
     extensionEnd,
   };

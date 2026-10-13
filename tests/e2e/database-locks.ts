@@ -88,7 +88,8 @@ export async function waitForBookings(
     | "admin_set_date_closed"
     | "admin_update_slot"
     | "admin_remove_presentation"
-    | "admin_update_presentation" = "register_presentation",
+    | "admin_update_presentation"
+    | "admin_move_presentation_day" = "register_presentation",
 ) {
   await expect
     .poll(

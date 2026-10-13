@@ -18,6 +18,14 @@ export function addCalendarDays(date: string, days: number): string {
   return value.toISOString().slice(0, 10);
 }
 
+export function calendarWeek(date: string): { start: string; end: string } {
+  const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+  const start = addCalendarDays(date, -((weekday + 6) % 7));
+  // Keep the HTML date input inside the application's supported year range.
+  const end = addCalendarDays(start, 6);
+  return { start, end: end.startsWith("+") ? "9999-12-31" : end };
+}
+
 export function formatPresentationDate(date: string, short = false): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "UTC",

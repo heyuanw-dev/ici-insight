@@ -39,6 +39,15 @@ export function adminError(message: string, code?: string): string {
     presenter_unavailable:
       "Choose an existing employee from the presenter list.",
     confirmation_required: "Confirm this action before continuing.",
+    invalid_week_day: "Choose a different day in the same Monday–Sunday week.",
+    day_move_past:
+      "Only current or future presentation dates can be moved. Choose a date that has not passed in Vancouver.",
+    day_move_closed:
+      "The original or destination date is closed. Reopen it explicitly before changing the presentation day.",
+    day_move_changed:
+      "The slots or bookings changed after you opened this form. Reload the schedule and review them before trying again.",
+    day_move_conflict:
+      "The destination already has slots. Choose an empty date, or reschedule presentations individually using their editors.",
   };
   if (messages[message]) return messages[message];
   const error = editingError(message, code);
