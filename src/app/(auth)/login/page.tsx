@@ -40,7 +40,7 @@ export default async function LoginPage({
         <p className="mt-3 text-sm leading-6 text-muted">
           {recovery
             ? "Enter your work email and we’ll send a link to reset your password."
-            : "Sign in with your invited account to access the team workspace."}
+            : "Sign in with your employee account to access the team workspace."}
         </p>
       </div>
       <section
@@ -65,8 +65,8 @@ export default async function LoginPage({
         )}
       </section>
       <p className="mt-6 text-sm leading-6 text-muted">
-        Access is by invitation only. Need an account? Contact your workspace
-        administrator.
+        Accounts are provided by your workspace administrator. Contact them if
+        you need access.
       </p>
     </div>
   );

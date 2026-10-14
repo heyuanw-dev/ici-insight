@@ -203,6 +203,9 @@ test("UI soft deletion blocks PDF, download, detail, search and pending uploads 
   archive,
   browser,
 }) => {
+  // Two sessions, three Storage uploads and repeated authorization checks can
+  // exceed the default timeout while the full suite shares the local stack.
+  test.setTimeout(60_000);
   const p = archive.presentation({ title: `${archive.tag} Retained files` });
   const other = await createAccount(),
     context = await browser.newContext();
@@ -224,7 +227,7 @@ test("UI soft deletion blocks PDF, download, detail, search and pending uploads 
         .click();
       await expect(
         page.getByText(`Current: Retained.${extension}`, { exact: false }),
-      ).toBeVisible();
+      ).toBeVisible({ timeout: 10_000 });
     }
     const reader = await context.newPage();
     await signIn(reader, other, `/presentations/${p.id}`);

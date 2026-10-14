@@ -73,17 +73,28 @@ async function permissions(employee, id) {
   );
 }
 
-test("only invitations provision membership; metadata cannot assign roles; password setup gates access", async () => {
+test("provisioned accounts and invitations create profiles; confirmation and password setup gate access", async () => {
   const id = randomUUID();
   await db.query(
     "insert into auth.users(id,email,encrypted_password) values ($1,'uninvited@example.test','hash')",
     [id],
   );
-  assert.equal((await db.query("select * from public.users")).rows.length, 0);
+  const manual = (await db.query("select * from public.users")).rows[0];
+  assert.equal(manual.id, id);
+  assert.equal(manual.auth_user_id, id);
+  assert.equal(manual.role, "user");
+  assert.equal(manual.password_setup_required, true);
   const employee = await invite({ password: false, confirmed: false });
+  assert.equal(employee.id, employee.authId);
   assert.equal(employee.role, "user");
   assert.equal(employee.password_setup_required, true);
   await db.exec("insert into public.categories(name) values ('AI')");
+  await asEmployee(db, id, async () => {
+    assert.equal(
+      (await db.query("select * from public.categories")).rows.length,
+      0,
+    );
+  });
   await asEmployee(db, employee.authId, async () => {
     assert.equal((await db.query("select * from public.users")).rows.length, 1);
     assert.equal(
@@ -257,7 +268,8 @@ test("employees cannot promote/reactivate themselves; all unfinished business wr
         "delete from public.presentation_slots",
         "update public.presentations set title='Changed'",
         "delete from public.presentation_files",
-        "select private.sync_invited_employee()",
+        "select private.sync_auth_employee()",
+        "select private.auth_employee_name('{}','employee@example.test')",
       ])
         await assert.rejects(db.exec(sql), (error) => error.code === "42501");
     });

@@ -317,12 +317,11 @@ test("file metadata enforces one current file per kind; soft deletion preserves 
 
 test("employee identity removal preserves authorship and duplicate emails are rejected", async () => {
   const authId = "11111111-1111-4111-8111-111111111111";
-  await db.query("insert into auth.users (id) values ($1)", [authId]);
-  const userId = await user();
-  await db.query("update public.users set auth_user_id = $1 where id = $2", [
-    authId,
-    userId,
-  ]);
+  await db.query(
+    "insert into auth.users (id,email) values ($1,'presenter@example.test')",
+    [authId],
+  );
+  const userId = authId;
   await presentation(userId, await slot());
   await assert.rejects(
     db.exec(

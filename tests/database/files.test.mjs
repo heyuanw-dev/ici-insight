@@ -24,8 +24,8 @@ async function employee(role = "user") {
   const {
     rows: [row],
   } = await db.query(
-    "insert into public.users(auth_user_id,name,email,role,password_setup_required) values ($1,'Presenter',$2,$3,false) returning id",
-    [authId, `${authId}@example.test`, role],
+    "update public.users set name='Presenter',role=$2,password_setup_required=false where auth_user_id=$1 returning id",
+    [authId, role],
   );
   return { authId, id: row.id };
 }

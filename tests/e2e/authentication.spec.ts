@@ -132,6 +132,7 @@ test.describe("authentication integration", () => {
   }) => {
     const account = await createAccount(false);
     try {
+      expect(account.id).toBe(account.authId);
       const route = `/auth/confirm?token_hash=${account.token}&type=invite`;
       await page.goto(route);
       await page.reload();

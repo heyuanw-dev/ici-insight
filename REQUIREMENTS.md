@@ -86,7 +86,13 @@ For the MVP, there does not need to be a complex admin dashboard unless it is ne
 
 ### Authentication
 
-Use Supabase Auth with invite-only accounts. Initial users and administrators are provisioned through Supabase administration. Public self-registration is not allowed.
+Use Supabase Auth with administrator-provisioned accounts. Administrators may invite employees or create their email accounts directly through Supabase Dashboard → Authentication → Users. Public self-registration is not allowed.
+
+Creating an email authentication user must automatically create its `public.users` application profile, whether invited or manually created. `public.users.id` and `public.users.auth_user_id` must both equal `auth.users.id` while linked. New profiles use the Auth email, a nonblank `name` or `full_name` from metadata (falling back to the email local part), and the default employee role `user`. Roles and active state must never be taken from editable Auth metadata; administrator roles are assigned explicitly in Supabase administration. Passwords and password hashes remain only in Supabase Auth.
+
+Synchronize existing authentication users without profiles without creating duplicates. Preserve existing profile names, administrator roles, active status, password-setup state, and presentation/file ownership when aligning legacy application UUIDs. Conflicting UUIDs or emails must stop the migration for administrator review rather than automatically merging identities. Deleting an Auth identity retains its application profile and history with a cleared Auth link.
+
+All new profiles, including invitations and manually created accounts, must complete website password setup. A directly provisioned account with a password can sign in to reach setup once its email is confirmed; an account without a known password uses password recovery. An Auth password hash alone does not prove setup because Supabase can generate one internally. Existing setup flags and all active-account and authorization checks are preserved. Anonymous, phone-only, and deleted Auth identities do not provision employee profiles.
 
 Keep the authentication integration simple enough to replace with corporate SSO later.
 
@@ -603,7 +609,7 @@ Use Supabase Storage for the MVP; an alternative storage provider is not part of
 
 ### Authentication
 
-Use **Supabase Auth** with invite-only accounts. Provision initial users and administrators through Supabase administration; disable public self-registration.
+Use **Supabase Auth** with administrator-provisioned accounts through invitations or direct email-account creation. A database trigger synchronizes Auth identities with application profiles as described in Section 2. Disable public self-registration.
 
 ### Hosting
 
@@ -687,7 +693,7 @@ Because this is an internal company application:
 - Presenters may upload or replace only their own presentation files, including after completion; administrators may manage files for any presentation.
 - Booking and rescheduling must enforce slot availability and America/Vancouver date boundaries on the server/database.
 - Soft-deleted presentations and their files must be hidden from normal application reads, previews, and downloads while retained in storage.
-- Accounts must be invite-only, with initial users and administrators provisioned through Supabase administration.
+- Accounts must be provisioned through Supabase administration (invitations or direct email-account creation); public self-registration must remain disabled. Default new profiles to the `user` role and assign administrators explicitly.
 - Administrative actions must require an administrator role.
 - File uploads must validate file type and file size.
 - User-provided text must be safely handled.

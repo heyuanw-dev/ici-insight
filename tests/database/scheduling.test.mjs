@@ -23,8 +23,8 @@ async function employee({ active = true, setup = false } = {}) {
   const {
     rows: [row],
   } = await db.query(
-    "insert into public.users(auth_user_id,name,email,is_active,password_setup_required) values ($1,'Test employee',$2,$3,$4) returning id",
-    [authId, `${authId}@example.test`, active, setup],
+    "update public.users set name='Test employee',is_active=$2,password_setup_required=$3 where auth_user_id=$1 returning id",
+    [authId, active, setup],
   );
   return { authId, id: row.id };
 }

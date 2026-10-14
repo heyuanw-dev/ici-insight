@@ -10,7 +10,15 @@ test("registration uploads optional PowerPoint and a PDF larger than the Server 
   account,
   slots,
 }, info) => {
-  const slot = slots.create(7);
+  // A developer's existing holiday closures also apply to newly inserted slots.
+  // Choose an open date without reopening or deleting any existing schedule data.
+  const openOffset =
+    localSql(`select day_offset from generate_series(7,90) as day_offset
+    where not exists (select 1 from public.schedule_date_closures
+      where presentation_date=(clock_timestamp() at time zone 'America/Vancouver')::date+day_offset)
+    order by day_offset limit 1;`);
+  expect(openOffset).toMatch(/^\d+$/);
+  const slot = slots.create(Number(openOffset));
   await signIn(page, account, `/presentations/new?slot=${slot.id}`);
   const title = `Slides at registration ${slot.id.slice(0, 8)}`;
   await page.getByLabel("Presentation title").fill(title);

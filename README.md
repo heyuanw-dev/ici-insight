@@ -5,7 +5,7 @@ Internal weekly AI presentation workspace for ICI Lab. [REQUIREMENTS.md](./REQUI
 ## Current scope
 
 - Next.js App Router, strict TypeScript, Tailwind CSS, responsive navigation, shared visual components, and accessible page layouts.
-- Invite-only email/password sign-in, invitation acceptance, password setup/recovery, and sign-out using Supabase Auth.
+- Administrator-provisioned email/password accounts, invitation acceptance, automatic Auth/profile synchronization, password setup/recovery, and sign-out using Supabase Auth. Public self-registration is disabled.
 - Verified server sessions, active employee profiles, database-controlled user/admin roles, protected routes, and database read authorization.
 - PostgreSQL schema for employees, categories, slots, presentations, and file metadata; six months of weekly slots (two on Tuesday by default) and the 12 reference categories.
 - Live upcoming presentations on Home, a schedule grouped by date and slot, 12-week navigation, and self-service registration with confirmation and conflict handling.
@@ -69,9 +69,11 @@ set role = 'admin'
 where lower(email) = lower('employee@example.com');
 ```
 
-Invitations automatically create a linked employee profile with the regular `user` role. A new invitation requires a password change after email confirmation before workspace access. Roles and active state never come from editable Auth user metadata. Set `public.users.is_active = false` to revoke application access immediately, including reads using an existing access token. Re-enable explicitly when appropriate. Supabase Auth bans are also respected.
+Both **Invite user** and **Create user** automatically create an employee profile: `public.users.id = public.users.auth_user_id = auth.users.id`, with the regular `user` role. The initial display name comes from nonblank string metadata `name`, then `full_name`, then the email local part. Every new profile requires a password change after email confirmation before workspace access, including directly created accounts. Roles and active state never come from editable Auth user metadata. Set `public.users.is_active = false` to revoke application access immediately, including reads using an existing access token. Re-enable explicitly when appropriate. Supabase Auth bans are also respected.
 
-Prefer **Invite user** over **Create user**. A manually created Auth identity alone has no application access; an administrator must explicitly create its linked `public.users` profile. If you choose that provisioning route, confirm the Auth email and insert the exact Auth UUID, employee name, and email. Set `password_setup_required = false` only if a password was already deliberately provisioned. Never infer an admin role from email or user metadata.
+You can also use **Authentication → Users → Create user**. Confirm the Auth email, then sign in with the provisioned password and complete the website's initial password setup. If no password was supplied, use the website's password recovery/setup flow. Supabase can generate an internal hash even without a supplied password, so hash presence alone never bypasses initial setup. You no longer need to insert a profile manually. Existing profiles retain their names, roles, active state, and password-setup flags; later Auth email changes synchronize automatically. Passwords and password hashes are never stored in `public.users`.
+
+Apply [the Auth synchronization migration](./supabase/migrations/20261013000000_auth_user_synchronization.sql) to existing projects. It backfills missing email accounts and aligns legacy profile UUIDs, cascading presentation/file ownership references without deleting history or changing administrator roles. The transaction briefly locks tables and stops on conflicting UUIDs/emails instead of merging accounts. Refresh open forms and update saved archive presenter filters after legacy IDs change. See [migration details, conflict checks, and verification](./docs/auth-user-synchronization.md). No new environment variables are required.
 
 Deleting an Auth identity retains the application profile and authorship. Re-inviting the same email will conflict with its retained unique email until an administrator deliberately reconciles that profile. Do not delete historical profiles or automatically reconnect a new identity to a previous administrator.
 
@@ -105,7 +107,7 @@ Sign-out clears this browser's credentials and revokes its refresh token. A pass
 
 | Route                                              | Current behavior                                                                                                    |
 | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `/login`                                           | Public invited-account sign-in; `?mode=recovery` displays password recovery                                         |
+| `/login`                                           | Public employee-account sign-in; `?mode=recovery` displays password recovery                                        |
 | `/auth/confirm`                                    | Public confirmation screen for invitation/recovery links; token consumed on POST                                    |
 | `/auth/callback`                                   | Public PKCE session exchange; validates account and safe return destination                                         |
 | `/account/password`                                | Verified active account required; supports initial setup and password changes                                       |
